@@ -494,7 +494,7 @@ export default function App() {
               htmlFor="ticket-file"
               className="block w-full py-4 rounded-2xl bg-white text-black font-bold text-sm cursor-pointer hover:bg-zinc-200 transition-all"
             >
-              {loadingScan ? 'Analizando Ticket con IA...' : 'Subir o Tomar Foto'}
+              {loadingScan ? 'Analizando Ticket' : 'Subir o Tomar Foto'}
             </label>
           </div>
         </main>
