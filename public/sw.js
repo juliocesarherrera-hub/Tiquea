@@ -1,4 +1,4 @@
-self.addEventListener('install', (event) => {
+self.addEventListener('install', () => {
   self.skipWaiting();
 });
 
@@ -7,5 +7,8 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
-  // Manejador básico de peticiones
+  // Ignorar peticiones a la API o métodos POST para que los datos móviles no las bloqueen
+  if (event.request.method !== 'GET' || event.request.url.includes('/api/')) {
+    return;
+  }
 });

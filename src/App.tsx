@@ -9,7 +9,8 @@ import { AdBanner } from './components/AdBanner';
 import { scanReceiptWithAI } from './services/ai';
 import { Calculator, Sparkles, Camera, ArrowLeft, CheckCircle2, Share2, RefreshCw, Plus, Trash2, X, Shield, FileText } from 'lucide-react';
 
-function resizeImage(file: File, maxWidth = 1024, maxHeight = 1024): Promise<string> {
+// Compresión ultraligera optimizada para redes y datos móviles
+function resizeImage(file: File, maxWidth = 800, maxHeight = 800): Promise<string> {
   return new Promise((resolve, reject) => {
     const img = new Image();
     img.src = URL.createObjectURL(file);
@@ -32,7 +33,7 @@ function resizeImage(file: File, maxWidth = 1024, maxHeight = 1024): Promise<str
       canvas.height = height;
       const ctx = canvas.getContext('2d');
       ctx?.drawImage(img, 0, 0, width, height);
-      resolve(canvas.toDataURL('image/jpeg', 0.8));
+      resolve(canvas.toDataURL('image/jpeg', 0.6));
     };
     img.onerror = (err) => reject(err);
   });
@@ -140,7 +141,7 @@ export default function App() {
     setScanError('');
 
     try {
-      const resizedBase64 = await resizeImage(file, 1024, 1024);
+      const resizedBase64 = await resizeImage(file, 800, 800);
       const res = await scanReceiptWithAI('gemini', '', resizedBase64);
 
       if (scanSource === 'quick') {
