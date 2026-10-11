@@ -7,16 +7,45 @@ import { formatCurrency } from './domain/money';
 import { TipSelector } from './components/TipSelector';
 import { AdBanner } from './components/AdBanner';
 import { scanReceiptWithAI } from './services/ai';
-import { Calculator, Sparkles, Camera, ArrowLeft, Settings as SettingsIcon, CheckCircle2, Share2, RefreshCw, Plus, Trash2, X } from 'lucide-react';
+import { Calculator, Sparkles, Camera, ArrowLeft, CheckCircle2, Share2, RefreshCw, Plus, Trash2, X } from 'lucide-react';
+
+// Comprimir fotos del celular antes de enviar al servidor
+function resizeImage(file: File, maxWidth = 1024, maxHeight = 1024): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.src = URL.createObjectURL(file);
+    img.onload = () => {
+      let width = img.width;
+      let height = img.height;
+      if (width > height) {
+        if (width > maxWidth) {
+          height = Math.round((height * maxWidth) / width);
+          width = maxWidth;
+        }
+      } else {
+        if (height > maxHeight) {
+          width = Math.round((width * maxHeight) / height);
+          height = maxHeight;
+        }
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      ctx?.drawImage(img, 0, 0, width, height);
+      resolve(canvas.toDataURL('image/jpeg', 0.8));
+    };
+    img.onerror = (err) => reject(err);
+  });
+}
 
 export default function App() {
   const [screen, setScreen] = useState<Screen>('home');
-  const [settings, setSettings] = useState<Settings>(() => ({
+  const [settings] = useState<Settings>(() => ({
     ...loadSettings(),
     provider: 'gemini',
   }));
 
-  // Origen del escaneo (si viene de modo rápido o detallado)
   const [scanSource, setScanSource] = useState<'quick' | 'detailed'>('detailed');
 
   // Estados de Modo Rápido
@@ -111,33 +140,29 @@ export default function App() {
     setScanError('');
 
     try {
-      const reader = new FileReader();
-      reader.onload = async () => {
-        const base64 = reader.result as string;
-        const res = await scanReceiptWithAI('gemini', settings.apiKey, base64);
+      const resizedBase64 = await resizeImage(file, 1024, 1024);
+      const res = await scanReceiptWithAI('gemini', '', resizedBase64);
 
-        if (scanSource === 'quick') {
-          const calculatedTotal = res.total || res.items.reduce((sum, item) => sum + item.price, 0);
-          if (calculatedTotal > 0) {
-            setQuickTotal(calculatedTotal.toFixed(2));
-          }
-          setScreen('quick');
-        } else {
-          const items: ReceiptItem[] = res.items.map((it, idx) => ({
-            id: `scan_${Date.now()}_${idx}`,
-            name: it.name,
-            price: it.price,
-            confidence: it.confidence,
-            assignedTo: [],
-          }));
-          setDetailedItems(items);
-          setScreen('detailed');
+      if (scanSource === 'quick') {
+        const calculatedTotal = res.total || res.items.reduce((sum, item) => sum + item.price, 0);
+        if (calculatedTotal > 0) {
+          setQuickTotal(calculatedTotal.toFixed(2));
         }
-        setLoadingScan(false);
-      };
-      reader.readAsDataURL(file);
+        setScreen('quick');
+      } else {
+        const items: ReceiptItem[] = res.items.map((it, idx) => ({
+          id: `scan_${Date.now()}_${idx}`,
+          name: it.name,
+          price: it.price,
+          confidence: it.confidence,
+          assignedTo: [],
+        }));
+        setDetailedItems(items);
+        setScreen('detailed');
+      }
     } catch (err) {
       setScanError(err instanceof Error ? err.message : 'Error al procesar la imagen.');
+    } finally {
       setLoadingScan(false);
     }
   };
@@ -151,12 +176,6 @@ export default function App() {
             <span className="text-2xl font-black tracking-tight text-emerald-400">
               Tiquea
             </span>
-            <button
-              onClick={() => setScreen('settings')}
-              className="p-3 rounded-full bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white transition-colors"
-            >
-              <SettingsIcon className="w-5 h-5" />
-            </button>
           </div>
 
           <div className="space-y-3">
@@ -164,7 +183,7 @@ export default function App() {
               Divide tu cuenta <span className="text-emerald-400">sin peleas.</span>
             </h1>
             <p className="text-xs text-zinc-400">
-              Escanea tu ticket o divide los gastos entre amigos en segundos.
+              Escanea tu ticket con IA o divide los gastos entre amigos en segundos.
             </p>
           </div>
 
@@ -198,35 +217,7 @@ export default function App() {
         </main>
       )}
 
-      {/* 2. CONFIGURACIÓN */}
-      {screen === 'settings' && (
-        <main className="max-w-md mx-auto p-6 space-y-6 pt-6">
-          <button onClick={() => setScreen('home')} className="flex items-center text-zinc-400 text-sm">
-            <ArrowLeft className="w-4 h-4 mr-2" /> Regresar
-          </button>
-          <h1 className="text-2xl font-bold">Configuración</h1>
-
-          <div className="bg-zinc-900 border border-zinc-800 rounded-3xl p-5 space-y-4">
-            <div className="space-y-2">
-              <label className="text-xs font-semibold text-zinc-400 uppercase block">
-                Gemini API Key
-              </label>
-              <input
-                type="password"
-                value={settings.apiKey}
-                onChange={(e) => setSettings({ ...settings, provider: 'gemini', apiKey: e.target.value })}
-                placeholder="Pega tu clave de Google AI Studio aquí..."
-                className="w-full bg-black border border-zinc-800 rounded-2xl p-3.5 text-xs text-white font-mono"
-              />
-            </div>
-            <p className="text-[11px] text-zinc-500 leading-relaxed">
-              Tu clave debe empezar por "AQ.".
-            </p>
-          </div>
-        </main>
-      )}
-
-      {/* 3. MODO RÁPIDO */}
+      {/* 2. MODO RÁPIDO */}
       {screen === 'quick' && (
         <main className="max-w-md mx-auto p-6 space-y-6 pt-6">
           <button onClick={() => setScreen('home')} className="flex items-center text-zinc-400 text-sm">
@@ -289,7 +280,7 @@ export default function App() {
         </main>
       )}
 
-      {/* 4. MODO DETALLADO */}
+      {/* 3. MODO DETALLADO */}
       {screen === 'detailed' && (
         <main className="max-w-md mx-auto p-6 space-y-6 pt-6">
           <button onClick={() => setScreen('home')} className="flex items-center text-zinc-400 text-sm">
@@ -308,7 +299,6 @@ export default function App() {
             </button>
           </div>
 
-          {/* Comensales */}
           <div className="bg-zinc-900 border border-zinc-800 rounded-3xl p-5 space-y-3">
             <label className="text-xs font-semibold text-zinc-400 uppercase block">Comensales</label>
             {detailedPeople.length === 0 ? (
@@ -356,7 +346,6 @@ export default function App() {
             </div>
           </div>
 
-          {/* Artículos */}
           <div className="bg-zinc-900 border border-zinc-800 rounded-3xl p-5 space-y-3">
             <label className="text-xs font-semibold text-zinc-400 uppercase block">Consumos</label>
             {detailedItems.length === 0 ? (
@@ -378,7 +367,6 @@ export default function App() {
                   </div>
                   {detailedPeople.length > 0 ? (
                     <div className="flex flex-wrap gap-1">
-                      {/* Botón "Todos" */}
                       {(() => {
                         const allPersonIds = detailedPeople.map((p) => p.id);
                         const isEveryoneSelected =
@@ -400,7 +388,6 @@ export default function App() {
                         );
                       })()}
 
-                      {/* Botones individuales */}
                       {detailedPeople.map((p) => {
                         const assigned = it.assignedTo.includes(p.id);
                         return (
@@ -486,7 +473,7 @@ export default function App() {
         </main>
       )}
 
-      {/* 5. ESCÁNER */}
+      {/* 4. ESCÁNER */}
       {screen === 'scanner' && (
         <main className="max-w-md mx-auto p-6 space-y-6 pt-6 text-center">
           <button onClick={() => setScreen(scanSource)} className="flex items-center text-zinc-400 text-sm">
@@ -494,7 +481,11 @@ export default function App() {
           </button>
           <h1 className="text-2xl font-bold">Escáner de Ticket</h1>
 
-          {scanError && <div className="p-4 bg-rose-500/20 text-rose-300 text-xs rounded-2xl text-left">{scanError}</div>}
+          {scanError && (
+            <div className="p-4 bg-rose-500/20 text-rose-300 text-xs rounded-2xl text-left font-mono">
+              {scanError}
+            </div>
+          )}
 
           <div className="p-8 bg-zinc-900 border border-zinc-800 rounded-3xl space-y-4">
             <Camera className="w-12 h-12 mx-auto text-violet-400" />
@@ -503,13 +494,13 @@ export default function App() {
               htmlFor="ticket-file"
               className="block w-full py-4 rounded-2xl bg-white text-black font-bold text-sm cursor-pointer hover:bg-zinc-200 transition-all"
             >
-              {loadingScan ? 'Analizando Ticket...' : 'Subir o Tomar Foto'}
+              {loadingScan ? 'Analizando Ticket con IA...' : 'Subir o Tomar Foto'}
             </label>
           </div>
         </main>
       )}
 
-      {/* 6. RESULTADOS */}
+      {/* 5. RESULTADOS */}
       {screen === 'results' && (
         <main className="max-w-md mx-auto p-6 space-y-6 pt-6">
           <button onClick={() => setScreen('home')} className="flex items-center text-zinc-400 text-sm">
