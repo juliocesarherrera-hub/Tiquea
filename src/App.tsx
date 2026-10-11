@@ -184,7 +184,7 @@ export default function App() {
                 Divide tu cuenta <span className="text-emerald-400">sin peleas.</span>
               </h1>
               <p className="text-xs text-zinc-400">
-                Escanea tu ticket con IA o divide los gastos entre amigos en segundos.
+                Escanea tu ticket o divide los gastos entre amigos en segundos.
               </p>
             </div>
 
@@ -211,7 +211,7 @@ export default function App() {
                 </div>
                 <div className="text-left">
                   <div className="font-bold text-lg text-white">Modo Detallado</div>
-                  <div className="text-xs text-zinc-400">Escanea el ticket con IA y asigna platillos.</div>
+                  <div className="text-xs text-zinc-400">Escanea el ticket y asigna platillos.</div>
                 </div>
               </button>
             </div>
@@ -495,7 +495,7 @@ export default function App() {
                 htmlFor="ticket-file"
                 className="block w-full py-4 rounded-2xl bg-white text-black font-bold text-sm cursor-pointer hover:bg-zinc-200 transition-all"
               >
-                {loadingScan ? 'Analizando Ticket con IA...' : 'Subir o Tomar Foto'}
+                {loadingScan ? 'Analizando Ticket' : 'Subir o Tomar Foto'}
               </label>
             </div>
           </main>
