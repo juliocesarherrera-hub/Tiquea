@@ -140,6 +140,12 @@ export default function App() {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    // Validar si hay conexión a internet antes de intentar procesar la foto con IA
+    if (!navigator.onLine) {
+      setScanError('📶 Sin conexión a internet. El escáner con IA requiere red, pero puedes usar la división manual.');
+      return;
+    }
+
     setLoadingScan(true);
     setScanError('');
 
