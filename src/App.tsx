@@ -1,15 +1,16 @@
 import { useState, useEffect } from 'react';
+import { Analytics } from '@vercel/analytics/react';
 import type { Settings, Screen, PersonResult, ReceiptItem, Tip } from './app/types';
-import { loadSettings, saveSettings } from './services/storage';
+import { loadSettings, saveSettings, getHistory, saveHistoryRecord, clearHistory, type HistoryRecord } from './services/storage';
 import { calculateQuickBill, calculateDetailedBill } from './domain/calculations';
 import { shareWhatsApp } from './domain/whatsapp';
 import { formatCurrency } from './domain/money';
+import { downloadSummaryAsImage } from './domain/exportImage';
 import { TipSelector } from './components/TipSelector';
 import { AdBanner } from './components/AdBanner';
 import { scanReceiptWithAI } from './services/ai';
-import { Calculator, Sparkles, Camera, ArrowLeft, CheckCircle2, Share2, RefreshCw, Plus, Trash2, X, Shield, FileText } from 'lucide-react';
+import { Calculator, Sparkles, Camera, ArrowLeft, CheckCircle2, Share2, RefreshCw, Plus, Trash2, X, Shield, FileText, Download, History, Clock } from 'lucide-react';
 
-// Compresión ultraligera optimizada para redes y datos móviles
 function resizeImage(file: File, maxWidth = 800, maxHeight = 800): Promise<string> {
   return new Promise((resolve, reject) => {
     const img = new Image();
@@ -48,6 +49,8 @@ export default function App() {
 
   const [scanSource, setScanSource] = useState<'quick' | 'detailed'>('detailed');
   const [modalLegal, setModalLegal] = useState<'privacy' | 'terms' | null>(null);
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
+  const [historyList, setHistoryList] = useState<HistoryRecord[]>(() => getHistory());
 
   // Estados de Modo Rápido
   const [quickTotal, setQuickTotal] = useState('');
@@ -168,8 +171,23 @@ export default function App() {
     }
   };
 
+  const finishCalculation = (calculatedResults: PersonResult[], modeType: 'Rápido' | 'Detallado') => {
+    setResults(calculatedResults);
+    const totalCents = calculatedResults.reduce((sum, r) => sum + r.totalCents, 0);
+    const updatedHistory = saveHistoryRecord({
+      type: modeType,
+      totalCents,
+      peopleCount: calculatedResults.length,
+      results: calculatedResults,
+    });
+    setHistoryList(updatedHistory);
+    setScreen('results');
+  };
+
   return (
     <div className="bg-black min-h-screen text-white font-sans selection:bg-emerald-500 selection:text-black pb-24 flex flex-col justify-between">
+      <Analytics />
+
       <div>
         {/* 1. HOME SCREEN */}
         {screen === 'home' && (
@@ -178,6 +196,13 @@ export default function App() {
               <span className="text-2xl font-black tracking-tight text-emerald-400">
                 Tiquea
               </span>
+              <button
+                onClick={() => setShowHistoryModal(true)}
+                className="p-2.5 rounded-2xl bg-zinc-900 border border-zinc-800 text-zinc-300 hover:text-white flex items-center space-x-1.5 text-xs font-bold transition-all"
+              >
+                <History className="w-4 h-4 text-emerald-400" />
+                <span>Historial</span>
+              </button>
             </div>
 
             <div className="space-y-3">
@@ -272,8 +297,7 @@ export default function App() {
             <button
               onClick={() => {
                 const res = calculateQuickBill(parseFloat(quickTotal) || 0, quickPeople, quickTip.value);
-                setResults(res);
-                setScreen('results');
+                finishCalculation(res, 'Rápido');
               }}
               className="w-full py-4 rounded-2xl bg-white text-black font-extrabold text-base hover:bg-zinc-200 transition-all"
             >
@@ -465,8 +489,7 @@ export default function App() {
             <button
               onClick={() => {
                 const res = calculateDetailedBill(detailedPeople, detailedItems, detailedTip);
-                setResults(res);
-                setScreen('results');
+                finishCalculation(res, 'Detallado');
               }}
               className="w-full py-4 rounded-2xl bg-white text-black font-extrabold text-base hover:bg-zinc-200 transition-all"
             >
@@ -535,26 +558,95 @@ export default function App() {
               ))}
             </div>
 
-            <button
-              onClick={() => shareWhatsApp(results)}
-              className="w-full py-4 rounded-2xl bg-emerald-500 text-black font-extrabold flex items-center justify-center space-x-2 hover:bg-emerald-400 transition-all"
-            >
-              <Share2 className="w-5 h-5" />
-              <span>Compartir por WhatsApp</span>
-            </button>
+            <div className="space-y-3">
+              <button
+                onClick={() => shareWhatsApp(results)}
+                className="w-full py-4 rounded-2xl bg-emerald-500 text-black font-extrabold flex items-center justify-center space-x-2 hover:bg-emerald-400 transition-all"
+              >
+                <Share2 className="w-5 h-5" />
+                <span>Compartir por WhatsApp</span>
+              </button>
 
-            <button
-              onClick={resetAll}
-              className="w-full py-3 rounded-2xl bg-zinc-900 text-zinc-300 font-bold flex items-center justify-center space-x-2 hover:bg-zinc-800 transition-all"
-            >
-              <RefreshCw className="w-4 h-4" />
-              <span>Nueva Cuenta</span>
-            </button>
+              <button
+                onClick={() => downloadSummaryAsImage(results)}
+                className="w-full py-3.5 rounded-2xl bg-zinc-800 text-white font-bold flex items-center justify-center space-x-2 hover:bg-zinc-700 transition-all text-sm"
+              >
+                <Download className="w-4 h-4 text-emerald-400" />
+                <span>Descargar como Imagen (PNG)</span>
+              </button>
+
+              <button
+                onClick={resetAll}
+                className="w-full py-3 rounded-2xl bg-zinc-900 text-zinc-400 font-bold flex items-center justify-center space-x-2 hover:bg-zinc-800 transition-all text-xs"
+              >
+                <RefreshCw className="w-4 h-4" />
+                <span>Nueva Cuenta</span>
+              </button>
+            </div>
           </main>
         )}
       </div>
 
-      {/* FOOTER Y ENLACES LEGALES (Requisito Google AdSense) */}
+      {/* MODAL DE HISTORIAL */}
+      {showHistoryModal && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-zinc-900 border border-zinc-800 rounded-3xl p-6 max-w-sm w-full space-y-4 max-h-[80vh] overflow-y-auto">
+            <div className="flex justify-between items-center">
+              <div className="flex items-center space-x-2">
+                <Clock className="w-5 h-5 text-emerald-400" />
+                <h2 className="text-lg font-bold">Últimas Cuentas</h2>
+              </div>
+              <button
+                onClick={() => setShowHistoryModal(false)}
+                className="p-1 text-zinc-400 hover:text-white"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {historyList.length === 0 ? (
+              <p className="text-xs text-zinc-500 italic py-4 text-center">
+                Aún no tienes cuentas guardadas en el historial.
+              </p>
+            ) : (
+              <div className="space-y-3">
+                {historyList.map((rec) => (
+                  <div
+                    key={rec.id}
+                    onClick={() => {
+                      setResults(rec.results);
+                      setShowHistoryModal(false);
+                      setScreen('results');
+                    }}
+                    className="p-4 bg-black border border-zinc-800 rounded-2xl hover:border-emerald-500/50 cursor-pointer transition-all space-y-1"
+                  >
+                    <div className="flex justify-between items-center font-bold text-sm">
+                      <span className="text-emerald-400">{formatCurrency(rec.totalCents)}</span>
+                      <span className="text-[10px] text-zinc-500 font-normal">{rec.date}</span>
+                    </div>
+                    <div className="flex justify-between text-xs text-zinc-400">
+                      <span>Modo {rec.type}</span>
+                      <span>{rec.peopleCount} comensales</span>
+                    </div>
+                  </div>
+                ))}
+
+                <button
+                  onClick={() => {
+                    clearHistory();
+                    setHistoryList([]);
+                  }}
+                  className="w-full py-2.5 text-xs text-rose-400 hover:text-rose-300 transition-all font-semibold pt-2"
+                >
+                  Borrar Historial
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* FOOTER Y ENLACES LEGALES */}
       <footer className="max-w-md mx-auto pt-8 pb-4 text-center space-y-2 border-t border-zinc-900 mt-8">
         <div className="flex justify-center space-x-4 text-xs text-zinc-500">
           <button
