@@ -9,7 +9,26 @@ import { downloadSummaryAsImage } from './domain/exportImage';
 import { TipSelector } from './components/TipSelector';
 import { AdBanner } from './components/AdBanner';
 import { scanReceiptWithAI } from './services/ai';
-import { Calculator, Sparkles, Camera, ArrowLeft, CheckCircle2, Share2, RefreshCw, Plus, Trash2, X, Shield, FileText, Download, History, Clock } from 'lucide-react';
+import {
+  Calculator,
+  Sparkles,
+  Camera,
+  ArrowLeft,
+  CheckCircle2,
+  Share2,
+  RefreshCw,
+  Plus,
+  Trash2,
+  X,
+  Shield,
+  FileText,
+  Download,
+  History,
+  Clock,
+  Copy,
+  Check,
+  DownloadCloud
+} from 'lucide-react';
 
 function resizeImage(file: File, maxWidth = 800, maxHeight = 800): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -52,6 +71,10 @@ export default function App() {
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [historyList, setHistoryList] = useState<HistoryRecord[]>(() => getHistory());
 
+  // Estado para capturar evento de instalación PWA
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [copiedText, setCopiedText] = useState(false);
+
   // Estados de Modo Rápido
   const [quickTotal, setQuickTotal] = useState('');
   const [quickPeople, setQuickPeople] = useState(2);
@@ -71,7 +94,38 @@ export default function App() {
 
   useEffect(() => {
     saveSettings(settings);
+
+    const handleBeforeInstallPrompt = (e: Event) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+    };
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    return () => window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
   }, [settings]);
+
+  const handleInstallPWA = () => {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    deferredPrompt.userChoice.then(() => setDeferredPrompt(null));
+  };
+
+  const copyToClipboard = (resultsToCopy: PersonResult[]) => {
+    let text = '🧾 *Resumen de Cuenta - Tiquea*\n\n';
+    resultsToCopy.forEach((p) => {
+      text += `👤 *${p.personName}*: ${formatCurrency(p.totalCents)}\n`;
+      p.items.forEach((it) => {
+        const shareInfo = it.sharedWith > 1 ? ` (1/${it.sharedWith})` : '';
+        text += `  • ${it.name}${shareInfo}: ${formatCurrency(it.amountCents)}\n`;
+      });
+      text += '\n';
+    });
+    text += 'Divide tu cuenta sin peleas en https://tiquea.app';
+
+    navigator.clipboard.writeText(text);
+    setCopiedText(true);
+    setTimeout(() => setCopiedText(false), 2000);
+  };
 
   const resetAll = () => {
     setQuickTotal('');
@@ -140,7 +194,6 @@ export default function App() {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Validar si hay conexión a internet antes de intentar procesar la foto con IA
     if (!navigator.onLine) {
       setScanError('📶 Sin conexión a internet. El escáner con IA requiere red, pero puedes usar la división manual.');
       return;
@@ -219,6 +272,19 @@ export default function App() {
                 Escanea tu ticket o divide los gastos entre amigos en segundos.
               </p>
             </div>
+
+            {deferredPrompt && (
+              <button
+                onClick={handleInstallPWA}
+                className="w-full p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 flex items-center justify-between hover:bg-emerald-500/20 transition-all text-xs font-bold"
+              >
+                <div className="flex items-center space-x-2">
+                  <DownloadCloud className="w-5 h-5" />
+                  <span>Instalar Tiquea en la pantalla de inicio</span>
+                </div>
+                <span>Instalar</span>
+              </button>
+            )}
 
             <div className="space-y-4">
               <button
@@ -571,6 +637,23 @@ export default function App() {
               >
                 <Share2 className="w-5 h-5" />
                 <span>Compartir por WhatsApp</span>
+              </button>
+
+              <button
+                onClick={() => copyToClipboard(results)}
+                className="w-full py-3.5 rounded-2xl bg-zinc-800 text-white font-bold flex items-center justify-center space-x-2 hover:bg-zinc-700 transition-all text-sm"
+              >
+                {copiedText ? (
+                  <>
+                    <Check className="w-4 h-4 text-emerald-400" />
+                    <span className="text-emerald-400">¡Copiado al portapapeles!</span>
+                  </>
+                ) : (
+                  <>
+                    <Copy className="w-4 h-4 text-emerald-400" />
+                    <span>Copiar Resumen de Texto</span>
+                  </>
+                )}
               </button>
 
               <button
