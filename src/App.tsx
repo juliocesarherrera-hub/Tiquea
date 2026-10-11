@@ -164,7 +164,7 @@ export default function App() {
               Divide tu cuenta <span className="text-emerald-400">sin peleas.</span>
             </h1>
             <p className="text-xs text-zinc-400">
-              Escanea tu ticket con IA o divide los gastos entre amigos en segundos.
+              Escanea tu ticket o divide los gastos entre amigos en segundos.
             </p>
           </div>
 
