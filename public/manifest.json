@@ -1,0 +1,17 @@
+{
+  "short_name": "Tiquea",
+  "name": "Tiquea - Divide tu cuenta sin peleas",
+  "description": "Escanea tickets de compra con IA y divide gastos entre amigos en segundos.",
+  "icons": [
+    {
+      "src": "favicon.svg",
+      "type": "image/svg+xml",
+      "sizes": "512x512 192x192"
+    }
+  ],
+  "start_url": "/",
+  "background_color": "#000000",
+  "theme_color": "#000000",
+  "display": "standalone",
+  "orientation": "portrait"
+}

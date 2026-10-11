@@ -7,9 +7,8 @@ import { formatCurrency } from './domain/money';
 import { TipSelector } from './components/TipSelector';
 import { AdBanner } from './components/AdBanner';
 import { scanReceiptWithAI } from './services/ai';
-import { Calculator, Sparkles, Camera, ArrowLeft, CheckCircle2, Share2, RefreshCw, Plus, Trash2, X } from 'lucide-react';
+import { Calculator, Sparkles, Camera, ArrowLeft, CheckCircle2, Share2, RefreshCw, Plus, Trash2, X, Shield, FileText } from 'lucide-react';
 
-// Comprimir fotos del celular antes de enviar al servidor
 function resizeImage(file: File, maxWidth = 1024, maxHeight = 1024): Promise<string> {
   return new Promise((resolve, reject) => {
     const img = new Image();
@@ -47,6 +46,7 @@ export default function App() {
   }));
 
   const [scanSource, setScanSource] = useState<'quick' | 'detailed'>('detailed');
+  const [modalLegal, setModalLegal] = useState<'privacy' | 'terms' | null>(null);
 
   // Estados de Modo Rápido
   const [quickTotal, setQuickTotal] = useState('');
@@ -168,387 +168,455 @@ export default function App() {
   };
 
   return (
-    <div className="bg-black min-h-screen text-white font-sans selection:bg-emerald-500 selection:text-black pb-24">
-      {/* 1. HOME SCREEN */}
-      {screen === 'home' && (
-        <main className="max-w-md mx-auto p-6 space-y-8 pt-10">
-          <div className="flex justify-between items-center">
-            <span className="text-2xl font-black tracking-tight text-emerald-400">
-              Tiquea
-            </span>
-          </div>
-
-          <div className="space-y-3">
-            <h1 className="text-4xl font-extrabold tracking-tight leading-tight text-white">
-              Divide tu cuenta <span className="text-emerald-400">sin peleas.</span>
-            </h1>
-            <p className="text-xs text-zinc-400">
-              Escanea tu ticket con IA o divide los gastos entre amigos en segundos.
-            </p>
-          </div>
-
-          <div className="space-y-4">
-            <button
-              onClick={() => setScreen('quick')}
-              className="w-full p-5 rounded-3xl bg-zinc-900 border border-zinc-800 flex items-center space-x-4 hover:border-emerald-500/50 transition-all"
-            >
-              <div className="p-3 rounded-2xl bg-emerald-500/10 text-emerald-400">
-                <Calculator className="w-6 h-6" />
-              </div>
-              <div className="text-left">
-                <div className="font-bold text-lg text-white">Modo Rápido</div>
-                <div className="text-xs text-zinc-400">División equitativa entre varias personas.</div>
-              </div>
-            </button>
-
-            <button
-              onClick={() => setScreen('detailed')}
-              className="w-full p-5 rounded-3xl bg-zinc-900 border border-zinc-800 flex items-center space-x-4 hover:border-violet-500/50 transition-all"
-            >
-              <div className="p-3 rounded-2xl bg-violet-500/10 text-violet-400">
-                <Sparkles className="w-6 h-6" />
-              </div>
-              <div className="text-left">
-                <div className="font-bold text-lg text-white">Modo Detallado</div>
-                <div className="text-xs text-zinc-400">Escanea el ticket con IA y asigna platillos.</div>
-              </div>
-            </button>
-          </div>
-        </main>
-      )}
-
-      {/* 2. MODO RÁPIDO */}
-      {screen === 'quick' && (
-        <main className="max-w-md mx-auto p-6 space-y-6 pt-6">
-          <button onClick={() => setScreen('home')} className="flex items-center text-zinc-400 text-sm">
-            <ArrowLeft className="w-4 h-4 mr-2" /> Regresar
-          </button>
-          <div className="flex justify-between items-center">
-            <h1 className="text-2xl font-bold">Modo Rápido</h1>
-            <button
-              onClick={() => {
-                setScanSource('quick');
-                setScreen('scanner');
-              }}
-              className="px-3 py-2 rounded-xl bg-violet-500/20 text-violet-400 font-bold text-xs flex items-center hover:bg-violet-500/30 transition-all"
-            >
-              <Camera className="w-4 h-4 mr-1" /> Escanear
-            </button>
-          </div>
-
-          <div className="bg-zinc-900 border border-zinc-800 rounded-3xl p-5 space-y-4">
-            <label className="text-xs font-semibold text-zinc-400 uppercase">Monto Total</label>
-            <input
-              type="number"
-              value={quickTotal}
-              onChange={(e) => setQuickTotal(e.target.value)}
-              placeholder="\$0.00"
-              className="w-full bg-black border border-zinc-800 rounded-2xl p-4 text-2xl font-bold text-white"
-            />
-
-            <label className="text-xs font-semibold text-zinc-400 uppercase block">
-              Personas: {quickPeople}
-            </label>
-            <div className="flex space-x-2">
-              <button
-                onClick={() => setQuickPeople(Math.max(1, quickPeople - 1))}
-                className="flex-1 p-3 bg-zinc-800 rounded-2xl text-xl font-bold"
-              >
-                -
-              </button>
-              <button
-                onClick={() => setQuickPeople(quickPeople + 1)}
-                className="flex-1 p-3 bg-zinc-800 rounded-2xl text-xl font-bold"
-              >
-                +
-              </button>
+    <div className="bg-black min-h-screen text-white font-sans selection:bg-emerald-500 selection:text-black pb-24 flex flex-col justify-between">
+      <div>
+        {/* 1. HOME SCREEN */}
+        {screen === 'home' && (
+          <main className="max-w-md mx-auto p-6 space-y-8 pt-10">
+            <div className="flex justify-between items-center">
+              <span className="text-2xl font-black tracking-tight text-emerald-400">
+                Tiquea
+              </span>
             </div>
 
-            <TipSelector tip={quickTip} onChange={setQuickTip} />
-          </div>
-
-          <button
-            onClick={() => {
-              const res = calculateQuickBill(parseFloat(quickTotal) || 0, quickPeople, quickTip.value);
-              setResults(res);
-              setScreen('results');
-            }}
-            className="w-full py-4 rounded-2xl bg-white text-black font-extrabold text-base hover:bg-zinc-200 transition-all"
-          >
-            Calcular Total
-          </button>
-        </main>
-      )}
-
-      {/* 3. MODO DETALLADO */}
-      {screen === 'detailed' && (
-        <main className="max-w-md mx-auto p-6 space-y-6 pt-6">
-          <button onClick={() => setScreen('home')} className="flex items-center text-zinc-400 text-sm">
-            <ArrowLeft className="w-4 h-4 mr-2" /> Regresar
-          </button>
-          <div className="flex justify-between items-center">
-            <h1 className="text-2xl font-bold">Modo Detallado</h1>
-            <button
-              onClick={() => {
-                setScanSource('detailed');
-                setScreen('scanner');
-              }}
-              className="px-3 py-2 rounded-xl bg-violet-500/20 text-violet-400 font-bold text-xs flex items-center hover:bg-violet-500/30 transition-all"
-            >
-              <Camera className="w-4 h-4 mr-1" /> Escanear
-            </button>
-          </div>
-
-          <div className="bg-zinc-900 border border-zinc-800 rounded-3xl p-5 space-y-3">
-            <label className="text-xs font-semibold text-zinc-400 uppercase block">Comensales</label>
-            {detailedPeople.length === 0 ? (
-              <p className="text-xs text-zinc-500 italic">Agrega personas escribiendo su nombre abajo.</p>
-            ) : (
-              <div className="flex flex-wrap gap-2">
-                {detailedPeople.map((p) => (
-                  <span
-                    key={p.id}
-                    className="px-3 py-1 bg-zinc-800 rounded-xl text-xs font-bold flex items-center space-x-1"
-                  >
-                    <span>{p.name}</span>
-                    <button
-                      onClick={() => handleDeletePerson(p.id)}
-                      className="text-zinc-400 hover:text-rose-400 ml-1"
-                      title="Eliminar comensal"
-                    >
-                      <X className="w-3 h-3" />
-                    </button>
-                  </span>
-                ))}
-              </div>
-            )}
-
-            <div className="flex space-x-2 pt-1">
-              <input
-                type="text"
-                placeholder="Nombre de la persona..."
-                value={newPersonName}
-                onChange={(e) => setNewPersonName(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    handleAddPerson();
-                  }
-                }}
-                className="flex-1 bg-black border border-zinc-800 rounded-xl px-3 py-2 text-xs text-white"
-              />
-              <button
-                onClick={handleAddPerson}
-                className="px-3 py-2 bg-white text-black rounded-xl font-bold text-xs hover:bg-zinc-200 transition-all"
-              >
-                <Plus className="w-4 h-4" />
-              </button>
+            <div className="space-y-3">
+              <h1 className="text-4xl font-extrabold tracking-tight leading-tight text-white">
+                Divide tu cuenta <span className="text-emerald-400">sin peleas.</span>
+              </h1>
+              <p className="text-xs text-zinc-400">
+                Escanea tu ticket con IA o divide los gastos entre amigos en segundos.
+              </p>
             </div>
-          </div>
 
-          <div className="bg-zinc-900 border border-zinc-800 rounded-3xl p-5 space-y-3">
-            <label className="text-xs font-semibold text-zinc-400 uppercase block">Consumos</label>
-            {detailedItems.length === 0 ? (
-              <p className="text-xs text-zinc-500 italic">Agrega consumos o escanea un ticket.</p>
-            ) : (
-              detailedItems.map((it) => (
-                <div key={it.id} className="p-3 bg-black rounded-2xl border border-zinc-800 space-y-2">
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm font-bold">{it.name}</span>
-                    <div className="flex items-center space-x-2">
-                      <span className="text-sm font-bold text-emerald-400">\${it.price.toFixed(2)}</span>
-                      <button
-                        onClick={() => handleDeleteItem(it.id)}
-                        className="text-zinc-500 hover:text-rose-400 p-1"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  </div>
-                  {detailedPeople.length > 0 ? (
-                    <div className="flex flex-wrap gap-1">
-                      {(() => {
-                        const allPersonIds = detailedPeople.map((p) => p.id);
-                        const isEveryoneSelected =
-                          allPersonIds.length > 0 &&
-                          allPersonIds.every((id) => it.assignedTo.includes(id));
-
-                        return (
-                          <button
-                            type="button"
-                            onClick={() => handleToggleAllForItem(it.id)}
-                            className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all ${
-                              isEveryoneSelected
-                                ? 'bg-emerald-500 text-black font-bold'
-                                : 'bg-zinc-800 text-zinc-400 hover:text-white'
-                            }`}
-                          >
-                            {isEveryoneSelected ? '✓ Todos' : 'Todos'}
-                          </button>
-                        );
-                      })()}
-
-                      {detailedPeople.map((p) => {
-                        const assigned = it.assignedTo.includes(p.id);
-                        return (
-                          <button
-                            key={p.id}
-                            onClick={() => {
-                              setDetailedItems((prev) =>
-                                prev.map((item) => {
-                                  if (item.id !== it.id) return item;
-                                  return {
-                                    ...item,
-                                    assignedTo: assigned
-                                      ? item.assignedTo.filter((id) => id !== p.id)
-                                      : [...item.assignedTo, p.id],
-                                  };
-                                })
-                              );
-                            }}
-                            className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all ${
-                              assigned ? 'bg-white text-black' : 'bg-zinc-800 text-zinc-400'
-                            }`}
-                          >
-                            {p.name}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  ) : (
-                    <p className="text-[10px] text-zinc-500">Agrega comensales arriba para asignar.</p>
-                  )}
+            <div className="space-y-4">
+              <button
+                onClick={() => setScreen('quick')}
+                className="w-full p-5 rounded-3xl bg-zinc-900 border border-zinc-800 flex items-center space-x-4 hover:border-emerald-500/50 transition-all"
+              >
+                <div className="p-3 rounded-2xl bg-emerald-500/10 text-emerald-400">
+                  <Calculator className="w-6 h-6" />
                 </div>
-              ))
-            )}
+                <div className="text-left">
+                  <div className="font-bold text-lg text-white">Modo Rápido</div>
+                  <div className="text-xs text-zinc-400">División equitativa entre varias personas.</div>
+                </div>
+              </button>
 
-            <div className="flex space-x-2 pt-2">
-              <input
-                type="text"
-                placeholder="Platillo o bebida..."
-                value={newItemName}
-                onChange={(e) => setNewItemName(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    handleAddItem();
-                  }
+              <button
+                onClick={() => setScreen('detailed')}
+                className="w-full p-5 rounded-3xl bg-zinc-900 border border-zinc-800 flex items-center space-x-4 hover:border-violet-500/50 transition-all"
+              >
+                <div className="p-3 rounded-2xl bg-violet-500/10 text-violet-400">
+                  <Sparkles className="w-6 h-6" />
+                </div>
+                <div className="text-left">
+                  <div className="font-bold text-lg text-white">Modo Detallado</div>
+                  <div className="text-xs text-zinc-400">Escanea el ticket con IA y asigna platillos.</div>
+                </div>
+              </button>
+            </div>
+          </main>
+        )}
+
+        {/* 2. MODO RÁPIDO */}
+        {screen === 'quick' && (
+          <main className="max-w-md mx-auto p-6 space-y-6 pt-6">
+            <button onClick={() => setScreen('home')} className="flex items-center text-zinc-400 text-sm">
+              <ArrowLeft className="w-4 h-4 mr-2" /> Regresar
+            </button>
+            <div className="flex justify-between items-center">
+              <h1 className="text-2xl font-bold">Modo Rápido</h1>
+              <button
+                onClick={() => {
+                  setScanSource('quick');
+                  setScreen('scanner');
                 }}
-                className="flex-1 bg-black border border-zinc-800 rounded-xl px-3 py-2 text-xs text-white"
-              />
+                className="px-3 py-2 rounded-xl bg-violet-500/20 text-violet-400 font-bold text-xs flex items-center hover:bg-violet-500/30 transition-all"
+              >
+                <Camera className="w-4 h-4 mr-1" /> Escanear
+              </button>
+            </div>
+
+            <div className="bg-zinc-900 border border-zinc-800 rounded-3xl p-5 space-y-4">
+              <label className="text-xs font-semibold text-zinc-400 uppercase">Monto Total</label>
               <input
                 type="number"
-                placeholder="Precio"
-                value={newItemPrice}
-                onChange={(e) => setNewItemPrice(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    handleAddItem();
-                  }
-                }}
-                className="w-20 bg-black border border-zinc-800 rounded-xl px-3 py-2 text-xs text-white"
+                value={quickTotal}
+                onChange={(e) => setQuickTotal(e.target.value)}
+                placeholder="\$0.00"
+                className="w-full bg-black border border-zinc-800 rounded-2xl p-4 text-2xl font-bold text-white"
               />
+
+              <label className="text-xs font-semibold text-zinc-400 uppercase block">
+                Personas: {quickPeople}
+              </label>
+              <div className="flex space-x-2">
+                <button
+                  onClick={() => setQuickPeople(Math.max(1, quickPeople - 1))}
+                  className="flex-1 p-3 bg-zinc-800 rounded-2xl text-xl font-bold"
+                >
+                  -
+                </button>
+                <button
+                  onClick={() => setQuickPeople(quickPeople + 1)}
+                  className="flex-1 p-3 bg-zinc-800 rounded-2xl text-xl font-bold"
+                >
+                  +
+                </button>
+              </div>
+
+              <TipSelector tip={quickTip} onChange={setQuickTip} />
+            </div>
+
+            <button
+              onClick={() => {
+                const res = calculateQuickBill(parseFloat(quickTotal) || 0, quickPeople, quickTip.value);
+                setResults(res);
+                setScreen('results');
+              }}
+              className="w-full py-4 rounded-2xl bg-white text-black font-extrabold text-base hover:bg-zinc-200 transition-all"
+            >
+              Calcular Total
+            </button>
+          </main>
+        )}
+
+        {/* 3. MODO DETALLADO */}
+        {screen === 'detailed' && (
+          <main className="max-w-md mx-auto p-6 space-y-6 pt-6">
+            <button onClick={() => setScreen('home')} className="flex items-center text-zinc-400 text-sm">
+              <ArrowLeft className="w-4 h-4 mr-2" /> Regresar
+            </button>
+            <div className="flex justify-between items-center">
+              <h1 className="text-2xl font-bold">Modo Detallado</h1>
               <button
-                onClick={handleAddItem}
-                className="p-2 bg-white text-black rounded-xl font-bold hover:bg-zinc-200 transition-all"
+                onClick={() => {
+                  setScanSource('detailed');
+                  setScreen('scanner');
+                }}
+                className="px-3 py-2 rounded-xl bg-violet-500/20 text-violet-400 font-bold text-xs flex items-center hover:bg-violet-500/30 transition-all"
               >
-                <Plus className="w-4 h-4" />
+                <Camera className="w-4 h-4 mr-1" /> Escanear
               </button>
             </div>
-          </div>
 
-          <TipSelector tip={detailedTip} onChange={setDetailedTip} />
-
-          <button
-            onClick={() => {
-              const res = calculateDetailedBill(detailedPeople, detailedItems, detailedTip);
-              setResults(res);
-              setScreen('results');
-            }}
-            className="w-full py-4 rounded-2xl bg-white text-black font-extrabold text-base hover:bg-zinc-200 transition-all"
-          >
-            Calcular Cuentas Exactas
-          </button>
-        </main>
-      )}
-
-      {/* 4. ESCÁNER */}
-      {screen === 'scanner' && (
-        <main className="max-w-md mx-auto p-6 space-y-6 pt-6 text-center">
-          <button onClick={() => setScreen(scanSource)} className="flex items-center text-zinc-400 text-sm">
-            <ArrowLeft className="w-4 h-4 mr-2" /> Cancelar
-          </button>
-          <h1 className="text-2xl font-bold">Escáner de Ticket</h1>
-
-          {scanError && (
-            <div className="p-4 bg-rose-500/20 text-rose-300 text-xs rounded-2xl text-left font-mono">
-              {scanError}
-            </div>
-          )}
-
-          <div className="p-8 bg-zinc-900 border border-zinc-800 rounded-3xl space-y-4">
-            <Camera className="w-12 h-12 mx-auto text-violet-400" />
-            <input type="file" accept="image/*" onChange={handleFileUpload} className="hidden" id="ticket-file" />
-            <label
-              htmlFor="ticket-file"
-              className="block w-full py-4 rounded-2xl bg-white text-black font-bold text-sm cursor-pointer hover:bg-zinc-200 transition-all"
-            >
-              {loadingScan ? 'Analizando Ticket' : 'Subir o Tomar Foto'}
-            </label>
-          </div>
-        </main>
-      )}
-
-      {/* 5. RESULTADOS */}
-      {screen === 'results' && (
-        <main className="max-w-md mx-auto p-6 space-y-6 pt-6">
-          <button onClick={() => setScreen('home')} className="flex items-center text-zinc-400 text-sm">
-            <ArrowLeft className="w-4 h-4 mr-2" /> Regresar
-          </button>
-
-          <div className="text-center space-y-2">
-            <CheckCircle2 className="w-12 h-12 mx-auto text-emerald-400" />
-            <h1 className="text-2xl font-bold">Resumen Final</h1>
-          </div>
-
-          <div className="space-y-3">
-            {results.map((p) => (
-              <div key={p.personId} className="p-5 bg-zinc-900 border border-zinc-800 rounded-3xl space-y-2">
-                <div className="flex justify-between font-bold text-lg">
-                  <span>👤 {p.personName}</span>
-                  <span className="text-emerald-400">{formatCurrency(p.totalCents)}</span>
-                </div>
-                <div className="text-xs text-zinc-400 space-y-1">
-                  {p.items.map((it, idx) => (
-                    <div key={idx} className="flex justify-between">
-                      <span>
-                        {it.name} {it.sharedWith > 1 && `(1/${it.sharedWith})`}
-                      </span>
-                      <span>{formatCurrency(it.amountCents)}</span>
-                    </div>
+            <div className="bg-zinc-900 border border-zinc-800 rounded-3xl p-5 space-y-3">
+              <label className="text-xs font-semibold text-zinc-400 uppercase block">Comensales</label>
+              {detailedPeople.length === 0 ? (
+                <p className="text-xs text-zinc-500 italic">Agrega personas escribiendo su nombre abajo.</p>
+              ) : (
+                <div className="flex flex-wrap gap-2">
+                  {detailedPeople.map((p) => (
+                    <span
+                      key={p.id}
+                      className="px-3 py-1 bg-zinc-800 rounded-xl text-xs font-bold flex items-center space-x-1"
+                    >
+                      <span>{p.name}</span>
+                      <button
+                        onClick={() => handleDeletePerson(p.id)}
+                        className="text-zinc-400 hover:text-rose-400 ml-1"
+                        title="Eliminar comensal"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </span>
                   ))}
                 </div>
+              )}
+
+              <div className="flex space-x-2 pt-1">
+                <input
+                  type="text"
+                  placeholder="Nombre de la persona..."
+                  value={newPersonName}
+                  onChange={(e) => setNewPersonName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleAddPerson();
+                    }
+                  }}
+                  className="flex-1 bg-black border border-zinc-800 rounded-xl px-3 py-2 text-xs text-white"
+                />
+                <button
+                  onClick={handleAddPerson}
+                  className="px-3 py-2 bg-white text-black rounded-xl font-bold text-xs hover:bg-zinc-200 transition-all"
+                >
+                  <Plus className="w-4 h-4" />
+                </button>
               </div>
-            ))}
+            </div>
+
+            <div className="bg-zinc-900 border border-zinc-800 rounded-3xl p-5 space-y-3">
+              <label className="text-xs font-semibold text-zinc-400 uppercase block">Consumos</label>
+              {detailedItems.length === 0 ? (
+                <p className="text-xs text-zinc-500 italic">Agrega consumos o escanea un ticket.</p>
+              ) : (
+                detailedItems.map((it) => (
+                  <div key={it.id} className="p-3 bg-black rounded-2xl border border-zinc-800 space-y-2">
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm font-bold">{it.name}</span>
+                      <div className="flex items-center space-x-2">
+                        <span className="text-sm font-bold text-emerald-400">\${it.price.toFixed(2)}</span>
+                        <button
+                          onClick={() => handleDeleteItem(it.id)}
+                          className="text-zinc-500 hover:text-rose-400 p-1"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                    {detailedPeople.length > 0 ? (
+                      <div className="flex flex-wrap gap-1">
+                        {(() => {
+                          const allPersonIds = detailedPeople.map((p) => p.id);
+                          const isEveryoneSelected =
+                            allPersonIds.length > 0 &&
+                            allPersonIds.every((id) => it.assignedTo.includes(id));
+
+                          return (
+                            <button
+                              type="button"
+                              onClick={() => handleToggleAllForItem(it.id)}
+                              className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all ${
+                                isEveryoneSelected
+                                  ? 'bg-emerald-500 text-black font-bold'
+                                  : 'bg-zinc-800 text-zinc-400 hover:text-white'
+                              }`}
+                            >
+                              {isEveryoneSelected ? '✓ Todos' : 'Todos'}
+                            </button>
+                          );
+                        })()}
+
+                        {detailedPeople.map((p) => {
+                          const assigned = it.assignedTo.includes(p.id);
+                          return (
+                            <button
+                              key={p.id}
+                              onClick={() => {
+                                setDetailedItems((prev) =>
+                                  prev.map((item) => {
+                                    if (item.id !== it.id) return item;
+                                    return {
+                                      ...item,
+                                      assignedTo: assigned
+                                        ? item.assignedTo.filter((id) => id !== p.id)
+                                        : [...item.assignedTo, p.id],
+                                    };
+                                  })
+                                );
+                              }}
+                              className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all ${
+                                assigned ? 'bg-white text-black' : 'bg-zinc-800 text-zinc-400'
+                              }`}
+                            >
+                              {p.name}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <p className="text-[10px] text-zinc-500">Agrega comensales arriba para asignar.</p>
+                    )}
+                  </div>
+                ))
+              )}
+
+              <div className="flex space-x-2 pt-2">
+                <input
+                  type="text"
+                  placeholder="Platillo o bebida..."
+                  value={newItemName}
+                  onChange={(e) => setNewItemName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleAddItem();
+                    }
+                  }}
+                  className="flex-1 bg-black border border-zinc-800 rounded-xl px-3 py-2 text-xs text-white"
+                />
+                <input
+                  type="number"
+                  placeholder="Precio"
+                  value={newItemPrice}
+                  onChange={(e) => setNewItemPrice(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleAddItem();
+                    }
+                  }}
+                  className="w-20 bg-black border border-zinc-800 rounded-xl px-3 py-2 text-xs text-white"
+                />
+                <button
+                  onClick={handleAddItem}
+                  className="p-2 bg-white text-black rounded-xl font-bold hover:bg-zinc-200 transition-all"
+                >
+                  <Plus className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+
+            <TipSelector tip={detailedTip} onChange={setDetailedTip} />
+
+            <button
+              onClick={() => {
+                const res = calculateDetailedBill(detailedPeople, detailedItems, detailedTip);
+                setResults(res);
+                setScreen('results');
+              }}
+              className="w-full py-4 rounded-2xl bg-white text-black font-extrabold text-base hover:bg-zinc-200 transition-all"
+            >
+              Calcular Cuentas Exactas
+            </button>
+          </main>
+        )}
+
+        {/* 4. ESCÁNER */}
+        {screen === 'scanner' && (
+          <main className="max-w-md mx-auto p-6 space-y-6 pt-6 text-center">
+            <button onClick={() => setScreen(scanSource)} className="flex items-center text-zinc-400 text-sm">
+              <ArrowLeft className="w-4 h-4 mr-2" /> Cancelar
+            </button>
+            <h1 className="text-2xl font-bold">Escáner de Ticket</h1>
+
+            {scanError && (
+              <div className="p-4 bg-rose-500/20 text-rose-300 text-xs rounded-2xl text-left font-mono">
+                {scanError}
+              </div>
+            )}
+
+            <div className="p-8 bg-zinc-900 border border-zinc-800 rounded-3xl space-y-4">
+              <Camera className="w-12 h-12 mx-auto text-violet-400" />
+              <input type="file" accept="image/*" onChange={handleFileUpload} className="hidden" id="ticket-file" />
+              <label
+                htmlFor="ticket-file"
+                className="block w-full py-4 rounded-2xl bg-white text-black font-bold text-sm cursor-pointer hover:bg-zinc-200 transition-all"
+              >
+                {loadingScan ? 'Analizando Ticket con IA...' : 'Subir o Tomar Foto'}
+              </label>
+            </div>
+          </main>
+        )}
+
+        {/* 5. RESULTADOS */}
+        {screen === 'results' && (
+          <main className="max-w-md mx-auto p-6 space-y-6 pt-6">
+            <button onClick={() => setScreen('home')} className="flex items-center text-zinc-400 text-sm">
+              <ArrowLeft className="w-4 h-4 mr-2" /> Regresar
+            </button>
+
+            <div className="text-center space-y-2">
+              <CheckCircle2 className="w-12 h-12 mx-auto text-emerald-400" />
+              <h1 className="text-2xl font-bold">Resumen Final</h1>
+            </div>
+
+            <div className="space-y-3">
+              {results.map((p) => (
+                <div key={p.personId} className="p-5 bg-zinc-900 border border-zinc-800 rounded-3xl space-y-2">
+                  <div className="flex justify-between font-bold text-lg">
+                    <span>👤 {p.personName}</span>
+                    <span className="text-emerald-400">{formatCurrency(p.totalCents)}</span>
+                  </div>
+                  <div className="text-xs text-zinc-400 space-y-1">
+                    {p.items.map((it, idx) => (
+                      <div key={idx} className="flex justify-between">
+                        <span>
+                          {it.name} {it.sharedWith > 1 && `(1/${it.sharedWith})`}
+                        </span>
+                        <span>{formatCurrency(it.amountCents)}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <button
+              onClick={() => shareWhatsApp(results)}
+              className="w-full py-4 rounded-2xl bg-emerald-500 text-black font-extrabold flex items-center justify-center space-x-2 hover:bg-emerald-400 transition-all"
+            >
+              <Share2 className="w-5 h-5" />
+              <span>Compartir por WhatsApp</span>
+            </button>
+
+            <button
+              onClick={resetAll}
+              className="w-full py-3 rounded-2xl bg-zinc-900 text-zinc-300 font-bold flex items-center justify-center space-x-2 hover:bg-zinc-800 transition-all"
+            >
+              <RefreshCw className="w-4 h-4" />
+              <span>Nueva Cuenta</span>
+            </button>
+          </main>
+        )}
+      </div>
+
+      {/* FOOTER Y ENLACES LEGALES (Requisito Google AdSense) */}
+      <footer className="max-w-md mx-auto pt-8 pb-4 text-center space-y-2 border-t border-zinc-900 mt-8">
+        <div className="flex justify-center space-x-4 text-xs text-zinc-500">
+          <button
+            onClick={() => setModalLegal('privacy')}
+            className="hover:text-zinc-300 flex items-center space-x-1 transition-all"
+          >
+            <Shield className="w-3.5 h-3.5" />
+            <span>Privacidad</span>
+          </button>
+          <span>•</span>
+          <button
+            onClick={() => setModalLegal('terms')}
+            className="hover:text-zinc-300 flex items-center space-x-1 transition-all"
+          >
+            <FileText className="w-3.5 h-3.5" />
+            <span>Términos</span>
+          </button>
+        </div>
+        <p className="text-[10px] text-zinc-600">
+          © {new Date().getFullYear()} Tiquea. Todos los derechos reservados.
+        </p>
+      </footer>
+
+      {/* MODALES LEGALES */}
+      {modalLegal && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-zinc-900 border border-zinc-800 rounded-3xl p-6 max-w-sm w-full space-y-4 max-h-[80vh] overflow-y-auto">
+            <div className="flex justify-between items-center">
+              <h2 className="text-lg font-bold">
+                {modalLegal === 'privacy' ? 'Política de Privacidad' : 'Términos de Servicio'}
+              </h2>
+              <button
+                onClick={() => setModalLegal(null)}
+                className="p-1 text-zinc-400 hover:text-white"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {modalLegal === 'privacy' ? (
+              <div className="text-xs text-zinc-400 space-y-3 leading-relaxed">
+                <p>
+                  En <strong>Tiquea</strong> respetamos tu privacidad. Las imágenes de los recibos o tickets de compra cargadas en la aplicación son procesadas exclusivamente para la extracción temporal de texto mediante Inteligencia Artificial.
+                </p>
+                <p>
+                  No almacenamos imágenes de tus tickets, nombres de personas ni información de pagos en ningún servidor ni base de datos permanente.
+                </p>
+                <p>
+                  Utilizamos servicios de analítica estándar y anuncios de terceros para mantener el servicio gratuito.
+                </p>
+              </div>
+            ) : (
+              <div className="text-xs text-zinc-400 space-y-3 leading-relaxed">
+                <p>
+                  <strong>Tiquea</strong> es una herramienta gratuita diseñada para facilitar el cálculo y la división equitativa de cuentas entre comensales.
+                </p>
+                <p>
+                  Los resultados proporcionados por la Inteligencia Artificial deben ser verificados por el usuario antes de realizar cualquier pago. Tiquea no asume responsabilidad por errores u omisiones en el escaneo.
+                </p>
+              </div>
+            )}
           </div>
-
-          <button
-            onClick={() => shareWhatsApp(results)}
-            className="w-full py-4 rounded-2xl bg-emerald-500 text-black font-extrabold flex items-center justify-center space-x-2 hover:bg-emerald-400 transition-all"
-          >
-            <Share2 className="w-5 h-5" />
-            <span>Compartir por WhatsApp</span>
-          </button>
-
-          <button
-            onClick={resetAll}
-            className="w-full py-3 rounded-2xl bg-zinc-900 text-zinc-300 font-bold flex items-center justify-center space-x-2 hover:bg-zinc-800 transition-all"
-          >
-            <RefreshCw className="w-4 h-4" />
-            <span>Nueva Cuenta</span>
-          </button>
-        </main>
+        </div>
       )}
 
       <AdBanner enabled={settings.adsEnabled} />
