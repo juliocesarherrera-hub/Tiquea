@@ -30,10 +30,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
     `;
 
-    // Endpoint actualizado al modelo recomendado gemini-3.8-flash
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${apiKey}`,
-      {
+    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${apiKey}`;
+
+    // Reintentos automáticos (máximo 3 intentos) si Google responde con alta demanda (503 / 429)
+    let response: Response | null = null;
+    let attempts = 0;
+    const maxAttempts = 3;
+
+    while (attempts < maxAttempts) {
+      attempts++;
+      response = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -51,11 +57,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             },
           ],
         }),
-      }
-    );
+      });
 
-    if (!response.ok) {
-      const errText = await response.text();
+      if (response.ok) break;
+
+      // Si hay saturación (503) o límite de cuota (429), esperar 1.5 segundos y reintentar
+      if ((response.status === 503 || response.status === 429) && attempts < maxAttempts) {
+        await new Promise((resolve) => setTimeout(resolve, 1500));
+        continue;
+      }
+      break;
+    }
+
+    if (!response || !response.ok) {
+      if (response?.status === 503) {
+        throw new Error('Servidor de IA con alta demanda temporal. Intenta tomar la foto nuevamente en unos segundos.');
+      }
+      const errText = await response?.text();
       throw new Error(`Error en la API de Gemini: ${errText}`);
     }
 
