@@ -36,7 +36,10 @@ export async function scanReceiptWithAI(
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
-      const message = typeof errorData?.error === 'string' ? errorData.error : `Error en el servidor de escaneo (HTTP ${response.status})`;
+      const serverMessage = typeof errorData?.error === 'string' ? errorData.error : '';
+      const message = /operation was aborted|aborted/i.test(serverMessage)
+        ? 'El servicio de IA interrumpió la solicitud antes de terminar. Intenta escanear el ticket de nuevo.'
+        : serverMessage || `Error en el servidor de escaneo (HTTP ${response.status})`;
       throw new Error(message);
     }
 
@@ -50,9 +53,12 @@ export async function scanReceiptWithAI(
   } catch (err: any) {
     clearTimeout(timeoutId);
 
-    if (err.name === 'AbortError') {
+    if (
+      err.name === 'AbortError' ||
+      (typeof err.message === 'string' && /operation was aborted|aborted/i.test(err.message))
+    ) {
       throw new Error(
-        'El escaneo tardó demasiado con esta imagen. Prueba con una foto más nítida o con un ticket más pequeño y revisa que el servicio de IA esté activo.'
+        'La solicitud de escaneo se interrumpió antes de terminar. Intenta de nuevo y, si persiste, revisa el estado del servicio de IA.'
       );
     }
 

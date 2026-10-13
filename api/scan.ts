@@ -40,34 +40,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     while (attempts < maxAttempts) {
       attempts++;
-
-      const googleController = new AbortController();
-      const googleTimeout = setTimeout(() => googleController.abort(), 30000);
-
-      try {
-        response = await fetch(endpoint, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          signal: googleController.signal,
-          body: JSON.stringify({
-            contents: [
-              {
-                parts: [
-                  { text: prompt },
-                  {
-                    inlineData: {
-                      mimeType: 'image/jpeg',
-                      data: cleanBase64,
-                    },
+      response = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [
+            {
+              parts: [
+                { text: prompt },
+                {
+                  inlineData: {
+                    mimeType: 'image/jpeg',
+                    data: cleanBase64,
                   },
-                ],
-              },
-            ],
-          }),
-        });
-      } finally {
-        clearTimeout(googleTimeout);
-      }
+                },
+              ],
+            },
+          ],
+        }),
+      });
 
       if (response.ok) break;
 
@@ -95,6 +86,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(200).json(parsedData);
   } catch (error) {
     console.error('Error en /api/scan:', error);
+    if (
+      error instanceof Error &&
+      (error.name === 'AbortError' || /operation was aborted|aborted/i.test(error.message))
+    ) {
+      return res.status(504).json({
+        error: 'El servicio de IA interrumpió la solicitud antes de terminar. Intenta escanear el ticket de nuevo.',
+      });
+    }
+
     return res.status(500).json({
       error: error instanceof Error ? error.message : 'Error al procesar la imagen.',
     });
