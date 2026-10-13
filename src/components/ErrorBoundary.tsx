@@ -1,6 +1,8 @@
 import { Component } from 'react';
 import type { ErrorInfo, ReactNode } from 'react';
 
+const APP_STORAGE_KEYS = ['tiquea_settings', 'tiquea_history'];
+
 interface Props {
   children: ReactNode;
 }
@@ -17,8 +19,25 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    console.error('Error no capturado:', error, errorInfo);
+    if (import.meta.env.DEV) {
+      console.error('Error no capturado:', error, errorInfo);
+      return;
+    }
+
+    console.error('Error no capturado en la aplicación');
   }
+
+  handleReset = () => {
+    for (const key of APP_STORAGE_KEYS) {
+      try {
+        window.localStorage.removeItem(key);
+      } catch {
+        // Ignorar errores de almacenamiento durante el reinicio.
+      }
+    }
+
+    window.location.reload();
+  };
 
   render() {
     if (this.state.hasError) {
@@ -32,10 +51,7 @@ export class ErrorBoundary extends Component<Props, State> {
             Ocurrió un problema inesperado al cargar la aplicación.
           </p>
           <button
-            onClick={() => {
-              localStorage.clear();
-              window.location.reload();
-            }}
+            onClick={this.handleReset}
             className="px-5 py-2.5 bg-emerald-500 text-black font-extrabold text-xs rounded-xl hover:bg-emerald-400 transition-all"
           >
             Reiniciar Aplicación

@@ -67,7 +67,9 @@ export default function App() {
   }));
 
   const [scanSource, setScanSource] = useState<'quick' | 'detailed'>('detailed');
-  const [modalLegal, setModalLegal] = useState<'privacy' | 'terms' | null>(null);
+  const [modalLegal, setModalLegal] = useState<
+    'privacy' | 'cookies' | 'terms' | 'delivery' | 'security' | 'contact' | null
+  >(null);
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [historyList, setHistoryList] = useState<HistoryRecord[]>(() => getHistory());
 
@@ -736,8 +738,8 @@ export default function App() {
       )}
 
       {/* FOOTER Y ENLACES LEGALES */}
-      <footer className="max-w-md mx-auto pt-8 pb-4 text-center space-y-2 border-t border-zinc-900 mt-8">
-        <div className="flex justify-center space-x-4 text-xs text-zinc-500">
+      <footer className="max-w-md mx-auto pt-8 pb-4 text-center space-y-3 border-t border-zinc-900 mt-8">
+        <div className="flex flex-wrap justify-center gap-2 text-[11px] text-zinc-500">
           <button
             onClick={() => setModalLegal('privacy')}
             className="hover:text-zinc-300 flex items-center space-x-1 transition-all"
@@ -747,11 +749,43 @@ export default function App() {
           </button>
           <span>•</span>
           <button
+            onClick={() => setModalLegal('cookies')}
+            className="hover:text-zinc-300 flex items-center space-x-1 transition-all"
+          >
+            <FileText className="w-3.5 h-3.5" />
+            <span>Cookies</span>
+          </button>
+          <span>•</span>
+          <button
             onClick={() => setModalLegal('terms')}
             className="hover:text-zinc-300 flex items-center space-x-1 transition-all"
           >
             <FileText className="w-3.5 h-3.5" />
             <span>Términos</span>
+          </button>
+          <span>•</span>
+          <button
+            onClick={() => setModalLegal('delivery')}
+            className="hover:text-zinc-300 flex items-center space-x-1 transition-all"
+          >
+            <Clock className="w-3.5 h-3.5" />
+            <span>Delivery</span>
+          </button>
+          <span>•</span>
+          <button
+            onClick={() => setModalLegal('security')}
+            className="hover:text-zinc-300 flex items-center space-x-1 transition-all"
+          >
+            <Shield className="w-3.5 h-3.5" />
+            <span>Seguridad</span>
+          </button>
+          <span>•</span>
+          <button
+            onClick={() => setModalLegal('contact')}
+            className="hover:text-zinc-300 flex items-center space-x-1 transition-all"
+          >
+            <CheckCircle2 className="w-3.5 h-3.5" />
+            <span>Contacto</span>
           </button>
         </div>
         <p className="text-[10px] text-zinc-600">
@@ -762,10 +796,15 @@ export default function App() {
       {/* MODALES LEGALES */}
       {modalLegal && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-zinc-900 border border-zinc-800 rounded-3xl p-6 max-w-sm w-full space-y-4 max-h-[80vh] overflow-y-auto">
+          <div className="bg-zinc-900 border border-zinc-800 rounded-3xl p-6 max-w-lg w-full space-y-4 max-h-[80vh] overflow-y-auto">
             <div className="flex justify-between items-center">
               <h2 className="text-lg font-bold">
-                {modalLegal === 'privacy' ? 'Política de Privacidad' : 'Términos de Servicio'}
+                {modalLegal === 'privacy' && 'Aviso de Privacidad'}
+                {modalLegal === 'cookies' && 'Política de Cookies'}
+                {modalLegal === 'terms' && 'Términos y Condiciones'}
+                {modalLegal === 'delivery' && 'Política de Delivery'}
+                {modalLegal === 'security' && 'Política de Seguridad'}
+                {modalLegal === 'contact' && 'Contacto y Derechos ARCO'}
               </h2>
               <button
                 onClick={() => setModalLegal(null)}
@@ -775,25 +814,122 @@ export default function App() {
               </button>
             </div>
 
-            {modalLegal === 'privacy' ? (
+            {modalLegal === 'privacy' && (
               <div className="text-xs text-zinc-400 space-y-3 leading-relaxed">
                 <p>
-                  En <strong>Tiquea</strong> respetamos tu privacidad. Las imágenes de los recibos o tickets de compra cargadas en la aplicación son procesadas exclusivamente para la extracción temporal de texto mediante Inteligencia Artificial.
+                  <strong>Tiquea</strong> respeta la privacidad de sus usuarios. Este Aviso de Privacidad describe qué datos personales recopilamos, para qué los utilizamos y cómo los protegemos.
                 </p>
                 <p>
-                  No almacenamos imágenes de tus tickets, nombres de personas ni información de pagos en ningún servidor ni base de datos permanente.
+                  Podemos recopilar nombre, correo, teléfono, información de uso, historial dentro de la aplicación, datos técnicos como IP, navegador, sistema operativo, ubicación aproximada si la app lo requiere y datos de pago o facturación cuando se utilizan servicios de cobro.
                 </p>
                 <p>
-                  Utilizamos servicios de analítica estándar y anuncios de terceros para mantener el servicio gratuito.
+                  Los datos se utilizan para operar la aplicación, mantener la cuenta, atender soporte, procesar pagos, mejorar la experiencia, cumplir obligaciones legales, prevenir fraudes y ofrecer comunicaciones vinculadas al servicio.
+                </p>
+                <p>
+                  Nunca venderemos tus datos personales. Solo los compartiremos con proveedores de servicios necesarios para funcionamiento, analítica, pagos, almacenamiento, atención al cliente y cumplimiento legal, siempre bajo medidas razonables de protección.
+                </p>
+                <p>
+                  El usuario podrá ejercer sus derechos de acceso, rectificación, cancelación y oposición (ARCO) enviando solicitud a <strong>hola@tiquea.app</strong> o a través del contacto disponible en la web.
+                </p>
+                <p>
+                  Las imágenes de recibos o tickets que se carguen al sistema se procesan únicamente para la extracción de información y no se conservan como archivo permanente si no es necesario para ofrecer el servicio. Las credenciales y datos sensibles se protegen con cifrado y controles de seguridad.
+                </p>
+                <p>
+                  Podemos actualizar este aviso en cualquier momento. Los cambios relevantes se publicarán en esta misma sección y se indicará la fecha de actualización.
                 </p>
               </div>
-            ) : (
+            )}
+
+            {modalLegal === 'cookies' && (
               <div className="text-xs text-zinc-400 space-y-3 leading-relaxed">
                 <p>
-                  <strong>Tiquea</strong> es una herramienta gratuita diseñada para facilitar el cálculo y la división equitativa de cuentas entre comensales.
+                  Nuestra web utiliza cookies y tecnologías similares para mejorar la navegación, recordar preferencias, ofrecer una experiencia más útil y analizar el uso del sitio. Las cookies necesarias permiten el correcto funcionamiento de la app.
                 </p>
                 <p>
-                  Los resultados proporcionados por la Inteligencia Artificial deben ser verificados por el usuario antes de realizar cualquier pago. Tiquea no asume responsabilidad por errores u omisiones en el escaneo.
+                  También podemos usar cookies analíticas y de terceros para medir tráfico, rendimiento, campañas publicitarias y comportamiento general. Antes de activar cookies no esenciales, se solicitará el consentimiento explícito del usuario.
+                </p>
+                <p>
+                  El usuario puede aceptar, rechazar o configurar sus preferencias desde el banner de cookies o desde la configuración del navegador. La desactivación de cookies puede afectar funciones como analítica, personalización y seguridad.
+                </p>
+                <p>
+                  Los terceros que puedan utilizar cookies incluyen proveedores de análisis, publicidad, pagos y servicios de infraestructura. Sus políticas de privacidad pueden aplicarse de forma independiente a la de Tiquea.
+                </p>
+              </div>
+            )}
+
+            {modalLegal === 'terms' && (
+              <div className="text-xs text-zinc-400 space-y-3 leading-relaxed">
+                <p>
+                  Al usar Tiquea, el usuario acepta que la plataforma es una herramienta para calcular, dividir y gestionar cuentas entre personas, con apoyo de funciones de IA para reconocer información de recibos o tickets. El servicio se brinda con fines informativos y de apoyo operativo.
+                </p>
+                <p>
+                  El usuario es responsable de la información que ingrese, de verificar los resultados antes de compartirlos, aceptarlos o utilizarlos para realizar pagos. Los cálculos, sugerencias o resultados generados por IA pueden contener errores o variaciones y deben revisarse antes de tomar decisiones importantes.
+                </p>
+                <p>
+                  No está permitido utilizar la plataforma para actividades ilegales, fraudulentas, maliciosas, ofensivas, relacionadas con contenido no autorizado o que viole derechos de terceros. Tiquea puede restringir, suspender o eliminar cuentas o contenido que incumplan estas reglas.
+                </p>
+                <p>
+                  Tiquea, su diseño, logotipos, textos, código y contenido asociado son propiedad de la marca o de sus licenciatarios. Queda prohibida la reproducción, distribución o uso no autorizado de estos elementos.
+                </p>
+                <p>
+                  Tiquea no garantiza disponibilidad ininterrumpida del servicio ni ausencia total de errores. En la medida permitida por la ley, la plataforma no será responsable por daños indirectos, incidentales, consecuentes o pérdida de datos derivados del uso del servicio, salvo que exista obligación legal expresa.
+                </p>
+              </div>
+            )}
+
+            {modalLegal === 'delivery' && (
+              <div className="text-xs text-zinc-400 space-y-3 leading-relaxed">
+                <p>
+                  Si Tiquea ofrece servicios de entrega, delivery o envío asociado a algún producto o servicio, esta política aplica a los pedidos o solicitudes realizadas a través de la plataforma.
+                </p>
+                <p>
+                  Los tiempos de entrega son estimados y pueden variar por tráfico, logística, disponibilidad del proveedor, condiciones climáticas, cierres temporales o eventos ajenos al control de Tiquea. La confirmación del pedido no garantiza una entrega exacta a la hora indicada.
+                </p>
+                <p>
+                  Los costos, zonas de cobertura, tiempos y métodos de pago se informarán claramente antes de confirmar la operación. En caso de cancelación, devolución o cambio, se aplicará la política vigente y los términos del proveedor o del servicio correspondiente.
+                </p>
+                <p>
+                  El usuario deberá proporcionar datos completos y correctos para la entrega, incluyendo dirección, referencias y contacto. Tiquea no será responsable por retrasos o errores cuando la información proporcionada por el cliente sea incompleta o incorrecta.
+                </p>
+                <p>
+                  En caso de incidentes con entregas, daños, retrasos o productos no conformes, el cliente puede comunicarlo a <strong>hola@tiquea.app</strong> para revisión y atención.
+                </p>
+              </div>
+            )}
+
+            {modalLegal === 'security' && (
+              <div className="text-xs text-zinc-400 space-y-3 leading-relaxed">
+                <p>
+                  La seguridad de la información es prioridad para Tiquea. Implementamos medidas razonables de seguridad técnica, administrativa y física para proteger el acceso a los datos y prevenir uso indebido, robo, pérdida o alteración.
+                </p>
+                <p>
+                  Entre estas medidas se encuentran cifrado de credenciales y tráfico en tránsito, controles de acceso, respaldo de datos, registro de auditoría, mitigación de vulnerabilidades y buenas prácticas de desarrollo seguro.
+                </p>
+                <p>
+                  Sin embargo, ninguna plataforma o sistema online garantiza seguridad absoluta. El usuario también debe proteger sus contraseñas, no compartir credenciales y mantener actualizado su dispositivo y navegador.
+                </p>
+                <p>
+                  En caso de detectar un incidente de seguridad, Tiquea realizará la revisión y notificación según la legislación aplicable y las mejores prácticas de protección de datos.
+                </p>
+              </div>
+            )}
+
+            {modalLegal === 'contact' && (
+              <div className="text-xs text-zinc-400 space-y-3 leading-relaxed">
+                <p>
+                  Para ejercer sus derechos de acceso, rectificación, cancelación, oposición, transparencia, portabilidad o cualquier consulta relacionada con privacidad, seguridad, cookies o uso del servicio, puede contactarnos en:
+                </p>
+                <p>
+                  <strong>Correo:</strong> hola@tiquea.app
+                </p>
+                <p>
+                  <strong>Teléfono:</strong> +52 55 0000 0000
+                </p>
+                <p>
+                  <strong>Sitio:</strong> https://tiquea.app
+                </p>
+                <p>
+                  Las solicitudes serán atendidas en los plazos legales que correspondan y, en su caso, se requerirá información adicional para verificar la identidad del solicitante.
                 </p>
               </div>
             )}
