@@ -7,7 +7,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
-    return res.status(500).json({ error: 'GEMINI_API_KEY no está configurada en el servidor de Vercel.' });
+    return res.status(500).json({
+      error: 'El servicio de IA no está configurado: GEMINI_API_KEY no está activa en el servidor.',
+    });
   }
 
   try {
@@ -32,36 +34,43 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${apiKey}`;
 
-    // Reintentos automáticos (máximo 3 intentos) si Google responde con alta demanda (503 / 429)
     let response: Response | null = null;
     let attempts = 0;
     const maxAttempts = 3;
 
     while (attempts < maxAttempts) {
       attempts++;
-      response = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [
-            {
-              parts: [
-                { text: prompt },
-                {
-                  inlineData: {
-                    mimeType: 'image/jpeg',
-                    data: cleanBase64,
+
+      const googleController = new AbortController();
+      const googleTimeout = setTimeout(() => googleController.abort(), 30000);
+
+      try {
+        response = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          signal: googleController.signal,
+          body: JSON.stringify({
+            contents: [
+              {
+                parts: [
+                  { text: prompt },
+                  {
+                    inlineData: {
+                      mimeType: 'image/jpeg',
+                      data: cleanBase64,
+                    },
                   },
-                },
-              ],
-            },
-          ],
-        }),
-      });
+                ],
+              },
+            ],
+          }),
+        });
+      } finally {
+        clearTimeout(googleTimeout);
+      }
 
       if (response.ok) break;
 
-      // Si hay saturación (503) o límite de cuota (429), esperar 1.5 segundos y reintentar
       if ((response.status === 503 || response.status === 429) && attempts < maxAttempts) {
         await new Promise((resolve) => setTimeout(resolve, 1500));
         continue;
@@ -79,7 +88,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const data = await response.json();
     const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-    
+
     const jsonString = rawText.replace(/```json/gi, '').replace(/```/g, '').trim();
     const parsedData = JSON.parse(jsonString);
 

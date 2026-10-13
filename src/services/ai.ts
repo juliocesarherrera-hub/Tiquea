@@ -20,7 +20,7 @@ export async function scanReceiptWithAI(
   base64Image: string
 ): Promise<ValidatedReceipt> {
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 20000);
+  const timeoutId = setTimeout(() => controller.abort(), 45000);
 
   try {
     const response = await fetch('/api/scan', {
@@ -36,9 +36,8 @@ export async function scanReceiptWithAI(
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
-      throw new Error(
-        errorData.error || `Error en el servidor de escaneo (HTTP ${response.status})`
-      );
+      const message = typeof errorData?.error === 'string' ? errorData.error : `Error en el servidor de escaneo (HTTP ${response.status})`;
+      throw new Error(message);
     }
 
     const data = await response.json();
@@ -50,11 +49,19 @@ export async function scanReceiptWithAI(
     };
   } catch (err: any) {
     clearTimeout(timeoutId);
+
     if (err.name === 'AbortError') {
       throw new Error(
-        'El escaneo tardó demasiado. Revisa tu conexión a internet o intenta con una imagen más nítida.'
+        'El escaneo tardó demasiado con esta imagen. Prueba con una foto más nítida o con un ticket más pequeño y revisa que el servicio de IA esté activo.'
       );
     }
+
+    if (err instanceof TypeError && /fetch/i.test(err.message)) {
+      throw new Error(
+        'No se pudo conectar con el servicio de escaneo. Revisa tu conexión a internet o que el backend de IA esté configurado.'
+      );
+    }
+
     throw err;
   }
 }
