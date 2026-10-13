@@ -11,33 +11,47 @@ export interface HistoryRecord {
 
 const SETTINGS_KEY = 'tiquea_settings';
 const HISTORY_KEY = 'tiquea_history';
+const DEFAULT_SETTINGS: Settings = { provider: 'gemini', apiKey: '', adsEnabled: true };
+
+function readStorage<T>(key: string, fallback: T): T {
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return fallback;
+    const parsed = JSON.parse(raw) as T;
+    return parsed ?? fallback;
+  } catch {
+    return fallback;
+  }
+}
 
 export function loadSettings(): Settings {
-  try {
-    const raw = localStorage.getItem(SETTINGS_KEY);
-    if (!raw) return { provider: 'gemini', apiKey: '', adsEnabled: true };
-    return JSON.parse(raw);
-  } catch {
-    return { provider: 'gemini', apiKey: '', adsEnabled: true };
-  }
+  return readStorage<Settings>(SETTINGS_KEY, DEFAULT_SETTINGS);
 }
 
 export function saveSettings(settings: Settings): void {
   try {
-    localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify({ ...DEFAULT_SETTINGS, ...settings }));
   } catch {
     // Ignore write errors
   }
 }
 
 export function getHistory(): HistoryRecord[] {
-  try {
-    const raw = localStorage.getItem(HISTORY_KEY);
-    if (!raw) return [];
-    return JSON.parse(raw);
-  } catch {
-    return [];
-  }
+  const history = readStorage<HistoryRecord[]>(HISTORY_KEY, []);
+
+  if (!Array.isArray(history)) return [];
+
+  return history.filter((record) => {
+    if (!record || typeof record !== 'object') return false;
+    return (
+      typeof record.id === 'string' &&
+      typeof record.date === 'string' &&
+      typeof record.type === 'string' &&
+      typeof record.totalCents === 'number' &&
+      typeof record.peopleCount === 'number' &&
+      Array.isArray(record.results)
+    );
+  });
 }
 
 export function saveHistoryRecord(record: Omit<HistoryRecord, 'id' | 'date'>): HistoryRecord[] {
@@ -55,7 +69,6 @@ export function saveHistoryRecord(record: Omit<HistoryRecord, 'id' | 'date'>): H
       }),
     };
 
-    // Guardar máximo las últimas 5 cuentas
     const updated = [newRecord, ...currentHistory].slice(0, 5);
     localStorage.setItem(HISTORY_KEY, JSON.stringify(updated));
     return updated;

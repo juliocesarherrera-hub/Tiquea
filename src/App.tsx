@@ -8,6 +8,10 @@ import { formatCurrency } from './domain/money';
 import { downloadSummaryAsImage } from './domain/exportImage';
 import { TipSelector } from './components/TipSelector';
 import { AdBanner } from './components/AdBanner';
+import { CookieConsentBanner } from './components/CookieConsentBanner';
+import { LegalPage } from './components/LegalPage';
+import { type LegalModalKey } from './config/legalContent';
+import { useLegalConsent } from './hooks/useLegalConsent';
 import { scanReceiptWithAI } from './services/ai';
 import {
   Calculator,
@@ -66,16 +70,17 @@ export default function App() {
     provider: 'gemini',
   }));
 
+  const { cookieConsent, showCookieBanner, handleCookieChoice } = useLegalConsent();
   const [scanSource, setScanSource] = useState<'quick' | 'detailed'>('detailed');
-  const [modalLegal, setModalLegal] = useState<
-    'privacy' | 'cookies' | 'terms' | 'delivery' | 'security' | 'contact' | null
-  >(null);
+  const [selectedLegalKey, setSelectedLegalKey] = useState<LegalModalKey | null>(null);
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [historyList, setHistoryList] = useState<HistoryRecord[]>(() => getHistory());
 
   // Estado para capturar evento de instalación PWA
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [copiedText, setCopiedText] = useState(false);
+  const [quickError, setQuickError] = useState('');
+  const [detailedError, setDetailedError] = useState('');
 
   // Estados de Modo Rápido
   const [quickTotal, setQuickTotal] = useState('');
@@ -141,11 +146,17 @@ export default function App() {
     setDetailedTip({ type: 'percentage', value: 15 });
     setResults([]);
     setScanError('');
+    setQuickError('');
+    setDetailedError('');
     setScreen('home');
   };
 
   const handleAddPerson = () => {
-    if (!newPersonName.trim()) return;
+    if (!newPersonName.trim()) {
+      setDetailedError('Escribe un nombre antes de agregar a una persona.');
+      return;
+    }
+    setDetailedError('');
     setDetailedPeople((prev) => [...prev, { id: `p_${Date.now()}`, name: newPersonName.trim() }]);
     setNewPersonName('');
   };
@@ -162,7 +173,17 @@ export default function App() {
 
   const handleAddItem = () => {
     const price = parseFloat(newItemPrice);
-    if (!newItemName.trim() || isNaN(price) || price < 0) return;
+    if (!newItemName.trim()) {
+      setDetailedError('Escribe el nombre del platillo o bebida.');
+      return;
+    }
+
+    if (isNaN(price) || price <= 0) {
+      setDetailedError('El precio debe ser mayor a 0.');
+      return;
+    }
+
+    setDetailedError('');
     setDetailedItems((prev) => [
       ...prev,
       { id: `item_${Date.now()}`, name: newItemName.trim(), price, assignedTo: [] },
@@ -195,6 +216,11 @@ export default function App() {
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      setScanError('Solo se permiten imágenes para escanear el ticket.');
+      return;
+    }
 
     if (!navigator.onLine) {
       setScanError('📶 Sin conexión a internet. El escáner con IA requiere red, pero puedes usar la división manual.');
@@ -245,9 +271,20 @@ export default function App() {
     setScreen('results');
   };
 
+  const analyticsEnabled = cookieConsent === 'accepted';
+
+  if (selectedLegalKey) {
+    return (
+      <div className="bg-black min-h-screen text-white font-sans selection:bg-emerald-500 selection:text-black pb-24 flex flex-col justify-between">
+        {analyticsEnabled && <Analytics />}
+        <LegalPage legalKey={selectedLegalKey} onBack={() => setSelectedLegalKey(null)} />
+      </div>
+    );
+  }
+
   return (
     <div className="bg-black min-h-screen text-white font-sans selection:bg-emerald-500 selection:text-black pb-24 flex flex-col justify-between">
-      <Analytics />
+      {analyticsEnabled && <Analytics />}
 
       <div>
         {/* 1. HOME SCREEN */}
@@ -342,7 +379,10 @@ export default function App() {
               <input
                 type="number"
                 value={quickTotal}
-                onChange={(e) => setQuickTotal(e.target.value)}
+                onChange={(e) => {
+                  setQuickTotal(e.target.value);
+                  setQuickError('');
+                }}
                 placeholder="\$0.00"
                 className="w-full bg-black border border-zinc-800 rounded-2xl p-4 text-2xl font-bold text-white"
               />
@@ -368,9 +408,23 @@ export default function App() {
               <TipSelector tip={quickTip} onChange={setQuickTip} />
             </div>
 
+            {quickError && (
+              <div className="p-3 bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs rounded-xl">
+                {quickError}
+              </div>
+            )}
+
             <button
               onClick={() => {
-                const res = calculateQuickBill(parseFloat(quickTotal) || 0, quickPeople, quickTip.value);
+                const parsedTotal = Number.parseFloat(quickTotal);
+
+                if (!quickTotal.trim() || Number.isNaN(parsedTotal) || parsedTotal <= 0) {
+                  setQuickError('Ingresa un monto total válido mayor a 0.');
+                  return;
+                }
+
+                setQuickError('');
+                const res = calculateQuickBill(parsedTotal, quickPeople, quickTip.value);
                 finishCalculation(res, 'Rápido');
               }}
               className="w-full py-4 rounded-2xl bg-white text-black font-extrabold text-base hover:bg-zinc-200 transition-all"
@@ -412,7 +466,10 @@ export default function App() {
                     >
                       <span>{p.name}</span>
                       <button
-                        onClick={() => handleDeletePerson(p.id)}
+                        onClick={() => {
+                          setDetailedError('');
+                          handleDeletePerson(p.id);
+                        }}
                         className="text-zinc-400 hover:text-rose-400 ml-1"
                         title="Eliminar comensal"
                       >
@@ -560,8 +617,25 @@ export default function App() {
 
             <TipSelector tip={detailedTip} onChange={setDetailedTip} />
 
+            {detailedError && (
+              <div className="p-3 bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs rounded-xl">
+                {detailedError}
+              </div>
+            )}
+
             <button
               onClick={() => {
+                if (detailedPeople.length === 0) {
+                  setDetailedError('Agrega al menos una persona antes de calcular.');
+                  return;
+                }
+
+                if (detailedItems.length === 0) {
+                  setDetailedError('Agrega al menos un consumo o escanea un ticket.');
+                  return;
+                }
+
+                setDetailedError('');
                 const res = calculateDetailedBill(detailedPeople, detailedItems, detailedTip);
                 finishCalculation(res, 'Detallado');
               }}
@@ -737,11 +811,18 @@ export default function App() {
         </div>
       )}
 
+      {showCookieBanner && (
+        <CookieConsentBanner
+          onAccept={() => handleCookieChoice('accepted')}
+          onReject={() => handleCookieChoice('rejected')}
+        />
+      )}
+
       {/* FOOTER Y ENLACES LEGALES */}
       <footer className="max-w-md mx-auto pt-8 pb-4 text-center space-y-3 border-t border-zinc-900 mt-8">
         <div className="flex flex-wrap justify-center gap-2 text-[11px] text-zinc-500">
           <button
-            onClick={() => setModalLegal('privacy')}
+            onClick={() => setSelectedLegalKey('privacy')}
             className="hover:text-zinc-300 flex items-center space-x-1 transition-all"
           >
             <Shield className="w-3.5 h-3.5" />
@@ -749,7 +830,7 @@ export default function App() {
           </button>
           <span>•</span>
           <button
-            onClick={() => setModalLegal('cookies')}
+            onClick={() => setSelectedLegalKey('cookies')}
             className="hover:text-zinc-300 flex items-center space-x-1 transition-all"
           >
             <FileText className="w-3.5 h-3.5" />
@@ -757,7 +838,7 @@ export default function App() {
           </button>
           <span>•</span>
           <button
-            onClick={() => setModalLegal('terms')}
+            onClick={() => setSelectedLegalKey('terms')}
             className="hover:text-zinc-300 flex items-center space-x-1 transition-all"
           >
             <FileText className="w-3.5 h-3.5" />
@@ -765,7 +846,7 @@ export default function App() {
           </button>
           <span>•</span>
           <button
-            onClick={() => setModalLegal('delivery')}
+            onClick={() => setSelectedLegalKey('delivery')}
             className="hover:text-zinc-300 flex items-center space-x-1 transition-all"
           >
             <Clock className="w-3.5 h-3.5" />
@@ -773,7 +854,7 @@ export default function App() {
           </button>
           <span>•</span>
           <button
-            onClick={() => setModalLegal('security')}
+            onClick={() => setSelectedLegalKey('security')}
             className="hover:text-zinc-300 flex items-center space-x-1 transition-all"
           >
             <Shield className="w-3.5 h-3.5" />
@@ -781,7 +862,7 @@ export default function App() {
           </button>
           <span>•</span>
           <button
-            onClick={() => setModalLegal('contact')}
+            onClick={() => setSelectedLegalKey('contact')}
             className="hover:text-zinc-300 flex items-center space-x-1 transition-all"
           >
             <CheckCircle2 className="w-3.5 h-3.5" />
@@ -792,150 +873,6 @@ export default function App() {
           © {new Date().getFullYear()} Tiquea. Todos los derechos reservados.
         </p>
       </footer>
-
-      {/* MODALES LEGALES */}
-      {modalLegal && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-zinc-900 border border-zinc-800 rounded-3xl p-6 max-w-lg w-full space-y-4 max-h-[80vh] overflow-y-auto">
-            <div className="flex justify-between items-center">
-              <h2 className="text-lg font-bold">
-                {modalLegal === 'privacy' && 'Aviso de Privacidad'}
-                {modalLegal === 'cookies' && 'Política de Cookies'}
-                {modalLegal === 'terms' && 'Términos y Condiciones'}
-                {modalLegal === 'delivery' && 'Política de Delivery'}
-                {modalLegal === 'security' && 'Política de Seguridad'}
-                {modalLegal === 'contact' && 'Contacto y Derechos ARCO'}
-              </h2>
-              <button
-                onClick={() => setModalLegal(null)}
-                className="p-1 text-zinc-400 hover:text-white"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            {modalLegal === 'privacy' && (
-              <div className="text-xs text-zinc-400 space-y-3 leading-relaxed">
-                <p>
-                  <strong>Tiquea</strong> respeta la privacidad de sus usuarios. Este Aviso de Privacidad describe qué datos personales recopilamos, para qué los utilizamos y cómo los protegemos.
-                </p>
-                <p>
-                  Podemos recopilar nombre, correo, teléfono, información de uso, historial dentro de la aplicación, datos técnicos como IP, navegador, sistema operativo, ubicación aproximada si la app lo requiere y datos de pago o facturación cuando se utilizan servicios de cobro.
-                </p>
-                <p>
-                  Los datos se utilizan para operar la aplicación, mantener la cuenta, atender soporte, procesar pagos, mejorar la experiencia, cumplir obligaciones legales, prevenir fraudes y ofrecer comunicaciones vinculadas al servicio.
-                </p>
-                <p>
-                  Nunca venderemos tus datos personales. Solo los compartiremos con proveedores de servicios necesarios para funcionamiento, analítica, pagos, almacenamiento, atención al cliente y cumplimiento legal, siempre bajo medidas razonables de protección.
-                </p>
-                <p>
-                  El usuario podrá ejercer sus derechos de acceso, rectificación, cancelación y oposición (ARCO) enviando solicitud a <strong>hola@tiquea.app</strong> o a través del contacto disponible en la web.
-                </p>
-                <p>
-                  Las imágenes de recibos o tickets que se carguen al sistema se procesan únicamente para la extracción de información y no se conservan como archivo permanente si no es necesario para ofrecer el servicio. Las credenciales y datos sensibles se protegen con cifrado y controles de seguridad.
-                </p>
-                <p>
-                  Podemos actualizar este aviso en cualquier momento. Los cambios relevantes se publicarán en esta misma sección y se indicará la fecha de actualización.
-                </p>
-              </div>
-            )}
-
-            {modalLegal === 'cookies' && (
-              <div className="text-xs text-zinc-400 space-y-3 leading-relaxed">
-                <p>
-                  Nuestra web utiliza cookies y tecnologías similares para mejorar la navegación, recordar preferencias, ofrecer una experiencia más útil y analizar el uso del sitio. Las cookies necesarias permiten el correcto funcionamiento de la app.
-                </p>
-                <p>
-                  También podemos usar cookies analíticas y de terceros para medir tráfico, rendimiento, campañas publicitarias y comportamiento general. Antes de activar cookies no esenciales, se solicitará el consentimiento explícito del usuario.
-                </p>
-                <p>
-                  El usuario puede aceptar, rechazar o configurar sus preferencias desde el banner de cookies o desde la configuración del navegador. La desactivación de cookies puede afectar funciones como analítica, personalización y seguridad.
-                </p>
-                <p>
-                  Los terceros que puedan utilizar cookies incluyen proveedores de análisis, publicidad, pagos y servicios de infraestructura. Sus políticas de privacidad pueden aplicarse de forma independiente a la de Tiquea.
-                </p>
-              </div>
-            )}
-
-            {modalLegal === 'terms' && (
-              <div className="text-xs text-zinc-400 space-y-3 leading-relaxed">
-                <p>
-                  Al usar Tiquea, el usuario acepta que la plataforma es una herramienta para calcular, dividir y gestionar cuentas entre personas, con apoyo de funciones de IA para reconocer información de recibos o tickets. El servicio se brinda con fines informativos y de apoyo operativo.
-                </p>
-                <p>
-                  El usuario es responsable de la información que ingrese, de verificar los resultados antes de compartirlos, aceptarlos o utilizarlos para realizar pagos. Los cálculos, sugerencias o resultados generados por IA pueden contener errores o variaciones y deben revisarse antes de tomar decisiones importantes.
-                </p>
-                <p>
-                  No está permitido utilizar la plataforma para actividades ilegales, fraudulentas, maliciosas, ofensivas, relacionadas con contenido no autorizado o que viole derechos de terceros. Tiquea puede restringir, suspender o eliminar cuentas o contenido que incumplan estas reglas.
-                </p>
-                <p>
-                  Tiquea, su diseño, logotipos, textos, código y contenido asociado son propiedad de la marca o de sus licenciatarios. Queda prohibida la reproducción, distribución o uso no autorizado de estos elementos.
-                </p>
-                <p>
-                  Tiquea no garantiza disponibilidad ininterrumpida del servicio ni ausencia total de errores. En la medida permitida por la ley, la plataforma no será responsable por daños indirectos, incidentales, consecuentes o pérdida de datos derivados del uso del servicio, salvo que exista obligación legal expresa.
-                </p>
-              </div>
-            )}
-
-            {modalLegal === 'delivery' && (
-              <div className="text-xs text-zinc-400 space-y-3 leading-relaxed">
-                <p>
-                  Si Tiquea ofrece servicios de entrega, delivery o envío asociado a algún producto o servicio, esta política aplica a los pedidos o solicitudes realizadas a través de la plataforma.
-                </p>
-                <p>
-                  Los tiempos de entrega son estimados y pueden variar por tráfico, logística, disponibilidad del proveedor, condiciones climáticas, cierres temporales o eventos ajenos al control de Tiquea. La confirmación del pedido no garantiza una entrega exacta a la hora indicada.
-                </p>
-                <p>
-                  Los costos, zonas de cobertura, tiempos y métodos de pago se informarán claramente antes de confirmar la operación. En caso de cancelación, devolución o cambio, se aplicará la política vigente y los términos del proveedor o del servicio correspondiente.
-                </p>
-                <p>
-                  El usuario deberá proporcionar datos completos y correctos para la entrega, incluyendo dirección, referencias y contacto. Tiquea no será responsable por retrasos o errores cuando la información proporcionada por el cliente sea incompleta o incorrecta.
-                </p>
-                <p>
-                  En caso de incidentes con entregas, daños, retrasos o productos no conformes, el cliente puede comunicarlo a <strong>hola@tiquea.app</strong> para revisión y atención.
-                </p>
-              </div>
-            )}
-
-            {modalLegal === 'security' && (
-              <div className="text-xs text-zinc-400 space-y-3 leading-relaxed">
-                <p>
-                  La seguridad de la información es prioridad para Tiquea. Implementamos medidas razonables de seguridad técnica, administrativa y física para proteger el acceso a los datos y prevenir uso indebido, robo, pérdida o alteración.
-                </p>
-                <p>
-                  Entre estas medidas se encuentran cifrado de credenciales y tráfico en tránsito, controles de acceso, respaldo de datos, registro de auditoría, mitigación de vulnerabilidades y buenas prácticas de desarrollo seguro.
-                </p>
-                <p>
-                  Sin embargo, ninguna plataforma o sistema online garantiza seguridad absoluta. El usuario también debe proteger sus contraseñas, no compartir credenciales y mantener actualizado su dispositivo y navegador.
-                </p>
-                <p>
-                  En caso de detectar un incidente de seguridad, Tiquea realizará la revisión y notificación según la legislación aplicable y las mejores prácticas de protección de datos.
-                </p>
-              </div>
-            )}
-
-            {modalLegal === 'contact' && (
-              <div className="text-xs text-zinc-400 space-y-3 leading-relaxed">
-                <p>
-                  Para ejercer sus derechos de acceso, rectificación, cancelación, oposición, transparencia, portabilidad o cualquier consulta relacionada con privacidad, seguridad, cookies o uso del servicio, puede contactarnos en:
-                </p>
-                <p>
-                  <strong>Correo:</strong> hola@tiquea.app
-                </p>
-                <p>
-                  <strong>Teléfono:</strong> +52 55 0000 0000
-                </p>
-                <p>
-                  <strong>Sitio:</strong> https://tiquea.app
-                </p>
-                <p>
-                  Las solicitudes serán atendidas en los plazos legales que correspondan y, en su caso, se requerirá información adicional para verificar la identidad del solicitante.
-                </p>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
 
       <AdBanner enabled={settings.adsEnabled} />
     </div>

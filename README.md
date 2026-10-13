@@ -1,32 +1,89 @@
-# React + TypeScript + Vite
+﻿# Tiquea
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+Tiquea es una app web para dividir cuentas entre personas, con soporte para modo rápido, modo detallado y escaneo de recibos con IA.
 
-Currently, two official plugins are available:
+## Descripción
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+La aplicación permite:
+- dividir el total entre varios comensales
+- asignar consumos por persona en modo detallado
+- escanear tickets o recibos con IA
+- compartir el resultado por WhatsApp
+- exportar el resumen como imagen
+- conservar un historial local de las últimas cuentas
 
-## React Compiler
+## Stack
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+- React + TypeScript
+- Vite
+- Tailwind CSS
+- Lucide React
+- Zod para validación de datos
 
-## Expanding the Oxlint configuration
+## Seguridad y privacidad
 
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
+La base del proyecto incluye medidas de seguridad y privacidad mínimas para uso web:
 
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
+- validación de entrada con Zod
+- mensaje de error global con ErrorBoundary
+- almacenamiento local minimalista y controlado
+- manejo de errores en lectura/escritura de localStorage
+- banner de consentimiento de cookies
+- secciones legales para privacidad, cookies, términos, seguridad, delivery y contacto
+
+### Consideraciones importantes para producción
+
+Antes de lanzar a producción, se recomienda:
+
+1. Revisar y personalizar contacto, correo, teléfono y URL del sitio.
+2. Definir la base legal exacta según país o región de operación.
+3. Añadir consentimiento granulado para cookies y analítica de terceros.
+4. Evitar guardar imágenes o documentos sensibles en localStorage.
+5. Usar un backend seguro si se requiere procesamiento de archivos, pagos o autenticación.
+6. Mantener copias de seguridad y monitoreo de incidencias.
+
+## Legal
+
+El proyecto incluye el contenido base de:
+- Aviso de Privacidad
+- Política de Cookies
+- Términos y Condiciones
+- Política de Delivery
+- Política de Seguridad
+- Contacto y derechos ARCO
+
+Estos textos están centralizados en:
+- `src/config/legalContent.ts`
+- `src/hooks/useLegalConsent.ts`
+- `src/components/LegalModal.tsx`
+- `src/components/CookieConsentBanner.tsx`
+
+## Estructura general
+
+```text
+src/
+  components/
+  config/
+  domain/
+  hooks/
+  services/
+  app/
+  App.tsx
 ```
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+## Ejecutar localmente
+
+```bash
+npm install
+npm run dev
+```
+
+## Compilar
+
+```bash
+npm run build
+```
+
+## Recomendación final
+
+La app ya tiene una base funcional y una capa legal imprescindible para un lanzamiento inicial, pero la versión final de producción debe revisarse con asesoría legal específica para el país y modelo de negocio real.
