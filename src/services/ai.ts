@@ -20,7 +20,7 @@ export async function scanReceiptWithAI(
   base64Image: string
 ): Promise<ValidatedReceipt> {
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 45000);
+  const timeoutId = setTimeout(() => controller.abort(), 55000);
 
   try {
     const response = await fetch('/api/scan', {
