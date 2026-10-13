@@ -54,41 +54,54 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
     `;
 
-    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${apiKey}`;
-
+    const models = ['gemini-3.8-flash', 'gemini-3.1-flash-lite'];
     let response: Response | null = null;
-    let attempts = 0;
-    const maxAttempts = 3;
+    let upstreamAborted = false;
 
-    while (attempts < maxAttempts) {
-      attempts++;
-      response = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [
-            {
-              parts: [
-                { text: prompt },
-                {
-                  inlineData: {
-                    mimeType: 'image/jpeg',
-                    data: cleanBase64,
+    for (const [index, model] of models.entries()) {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 24000);
+      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+
+      try {
+        response = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          signal: controller.signal,
+          body: JSON.stringify({
+            contents: [
+              {
+                parts: [
+                  { text: prompt },
+                  {
+                    inlineData: {
+                      mimeType: 'image/jpeg',
+                      data: cleanBase64,
+                    },
                   },
-                },
-              ],
-            },
-          ],
-        }),
-      });
+                ],
+              },
+            ],
+          }),
+        });
+      } catch (error) {
+        if (!(error instanceof Error) || error.name !== 'AbortError') {
+          throw error;
+        }
+        upstreamAborted = true;
+        if (index === models.length - 1) break;
+        continue;
+      } finally {
+        clearTimeout(timeoutId);
+      }
 
       if (response.ok) break;
 
-      if ((response.status === 503 || response.status === 429) && attempts < maxAttempts) {
-        await new Promise((resolve) => setTimeout(resolve, getRetryDelay(response, attempts)));
-        continue;
-      }
-      break;
+      const canFallback =
+        index < models.length - 1 && (response.status === 429 || response.status === 503);
+      if (!canFallback) break;
+
+      await new Promise((resolve) => setTimeout(resolve, getRetryDelay(response, index + 1)));
     }
 
     if (!response || !response.ok) {
@@ -100,6 +113,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (response?.status === 503) {
         return res.status(503).json({
           error: 'El servicio de IA está temporalmente saturado. Espera unos segundos y vuelve a intentar.',
+        });
+      }
+      if (upstreamAborted) {
+        return res.status(504).json({
+          error: 'Los modelos de IA tardaron demasiado en responder. Intenta de nuevo en unos segundos.',
         });
       }
       const errText = await response?.text();
