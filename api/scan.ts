@@ -4,6 +4,24 @@ export const config = {
   maxDuration: 60,
 };
 
+function getRetryDelay(response: Response, attempt: number): number {
+  const retryAfter = response.headers.get('retry-after');
+  if (retryAfter) {
+    const seconds = Number(retryAfter);
+    if (Number.isFinite(seconds)) {
+      return Math.min(Math.max(seconds * 1000, 0), 8000);
+    }
+
+    const retryAt = Date.parse(retryAfter);
+    if (Number.isFinite(retryAt)) {
+      return Math.min(Math.max(retryAt - Date.now(), 0), 8000);
+    }
+  }
+
+  const backoff = Math.min(1000 * 2 ** (attempt - 1), 4000);
+  return backoff + Math.floor(Math.random() * 1000);
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Método no permitido' });
@@ -67,15 +85,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (response.ok) break;
 
       if ((response.status === 503 || response.status === 429) && attempts < maxAttempts) {
-        await new Promise((resolve) => setTimeout(resolve, 1500));
+        await new Promise((resolve) => setTimeout(resolve, getRetryDelay(response, attempts)));
         continue;
       }
       break;
     }
 
     if (!response || !response.ok) {
+      if (response?.status === 429) {
+        return res.status(429).json({
+          error: 'Gemini alcanzó temporalmente un límite de solicitudes o cuota. Espera unos segundos y vuelve a intentar; si se repite, revisa la cuota de la clave GEMINI_API_KEY.',
+        });
+      }
       if (response?.status === 503) {
-        throw new Error('Servidor de IA con alta demanda temporal. Intenta tomar la foto nuevamente en unos segundos.');
+        return res.status(503).json({
+          error: 'El servicio de IA está temporalmente saturado. Espera unos segundos y vuelve a intentar.',
+        });
       }
       const errText = await response?.text();
       throw new Error(`Error en la API de Gemini: ${errText}`);
