@@ -232,7 +232,7 @@ export default function App() {
 
     try {
       const resizedBase64 = await resizeImage(file, 800, 800);
-      const res = await scanReceiptWithAI('gemini', '', resizedBase64);
+      const res = await scanReceiptWithAI(resizedBase64);
 
       if (scanSource === 'quick') {
         const calculatedTotal = res.total || res.items.reduce((sum, item) => sum + item.price, 0);

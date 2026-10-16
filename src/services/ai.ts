@@ -1,5 +1,4 @@
 import { z } from 'zod';
-import type { AIProvider } from '../app/types';
 
 export const ReceiptItemSchema = z.object({
   name: z.string().min(1).trim(),
@@ -14,11 +13,7 @@ export const ScannedReceiptSchema = z.object({
 
 export type ValidatedReceipt = z.infer<typeof ScannedReceiptSchema>;
 
-export async function scanReceiptWithAI(
-  _provider: AIProvider,
-  _apiKey: string,
-  base64Image: string
-): Promise<ValidatedReceipt> {
+export async function scanReceiptWithAI(base64Image: string): Promise<ValidatedReceipt> {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 55000);
 

@@ -78,6 +78,23 @@ npm install
 npm run dev
 ```
 
+## Configurar el escáner con IA
+
+Configura las claves como variables de entorno del backend (por ejemplo, en Vercel):
+
+- `GEMINI_API_KEY`: proveedor principal.
+- `OPENAI_API_KEY`: proveedor de respaldo opcional.
+
+El escáner usa Gemini mientras esté disponible y cambia automáticamente a OpenAI si Gemini alcanza su cuota o no responde. Si solo se configura `OPENAI_API_KEY`, OpenAI se usa como proveedor principal. No coloques estas claves en el código del frontend.
+
+### Desarrollo local
+
+Las variables configuradas en Vercel se usan en el sitio desplegado y no se copian automáticamente a VS Code. Si ejecutas el backend localmente con Vercel CLI (`vercel dev`), configura las variables locales en `.env.local`; ese archivo está excluido de Git para evitar publicar las claves.
+
+### Vercel
+
+Si `GEMINI_API_KEY` ya está configurada y funciona, déjala como está. Solo agrega `OPENAI_API_KEY` en esa misma pantalla: **Project → Settings → Environment Variables**. Es una variable separada; no reemplaces ni vuelvas a pegar la clave de Gemini. Selecciona los entornos deseados y vuelve a desplegar el proyecto.
+
 ## Compilar
 
 ```bash
