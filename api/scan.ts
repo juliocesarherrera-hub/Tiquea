@@ -4,34 +4,176 @@ export const config = {
   maxDuration: 60,
 };
 
+const GEMINI_MODELS = ['gemini-3.8-flash', 'gemini-3.1-flash-lite'];
+
+const AI_PROMPT = `
+  Analiza esta imagen de un ticket o recibo de compra.
+  Extrae todos los artículos consumidos con su precio y el total.
+  Responde ÚNICAMENTE con un objeto JSON con el siguiente formato estricto (sin bloques de código Markdown):
+  {
+    "items": [
+      { "name": "Nombre del concepto", "price": 0.00, "confidence": 0.95 }
+    ],
+    "total": 0.00
+  }
+`;
+
+function getGeminiKeys(): string[] {
+  const keys: string[] = [];
+  const primary = process.env.GEMINI_API_KEY;
+  if (primary) keys.push(primary.trim());
+  for (let i = 2; i <= 5; i++) {
+    const k = process.env[`GEMINI_API_KEY_${i}`];
+    if (k && k.trim()) keys.push(k.trim());
+  }
+  return keys;
+}
+
 function getRetryDelay(response: Response, attempt: number): number {
   const retryAfter = response.headers.get('retry-after');
   if (retryAfter) {
     const seconds = Number(retryAfter);
-    if (Number.isFinite(seconds)) {
-      return Math.min(Math.max(seconds * 1000, 0), 8000);
-    }
-
+    if (Number.isFinite(seconds)) return Math.min(Math.max(seconds * 1000, 0), 3000);
     const retryAt = Date.parse(retryAfter);
-    if (Number.isFinite(retryAt)) {
-      return Math.min(Math.max(retryAt - Date.now(), 0), 8000);
+    if (Number.isFinite(retryAt)) return Math.min(Math.max(retryAt - Date.now(), 0), 3000);
+  }
+  return Math.min(500 * 2 ** (attempt - 1), 1500);
+}
+
+function isQuotaOrUnavailable(response: Response, responseText: string): boolean {
+  return (
+    response.status === 429 ||
+    response.status === 503 ||
+    (response.status === 403 && /RESOURCE_EXHAUSTED|quota/i.test(responseText))
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Intenta Gemini con rotación de Claves (1, 2, 3...) y Modelos (3.8 -> 3.1 Lite)
+// ---------------------------------------------------------------------------
+async function requestGeminiCascade(imageBase64: string): Promise<{ data?: any; errorText?: string; timedOut?: boolean }> {
+  const keys = getGeminiKeys();
+  if (keys.length === 0) {
+    return { errorText: 'No hay claves de GEMINI_API_KEY configuradas.' };
+  }
+
+  for (const [keyIndex, apiKey] of keys.entries()) {
+    for (const [modelIndex, model] of GEMINI_MODELS.entries()) {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 20000);
+      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+
+      try {
+        const response = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          signal: controller.signal,
+          body: JSON.stringify({
+            contents: [
+              {
+                parts: [
+                  { text: AI_PROMPT },
+                  { inlineData: { mimeType: 'image/jpeg', data: imageBase64 } },
+                ],
+              },
+            ],
+          }),
+        });
+
+        clearTimeout(timeoutId);
+
+        if (response.ok) {
+          const json = await response.json();
+          const rawText = json.candidates?.[0]?.content?.parts?.[0]?.text || '';
+          const cleaned = rawText.replace(/```json/gi, '').replace(/```/g, '').trim();
+          return { data: JSON.parse(cleaned) };
+        }
+
+        const errText = await response.text();
+        const quotaExceeded = isQuotaOrUnavailable(response, errText);
+
+        if (quotaExceeded) {
+          console.warn(`Gemini clave #${keyIndex + 1} (${model}) agotó cuota. Probando siguiente opción...`);
+          // Si quedan modelos en esta clave, o quedan más claves, continúa el ciclo
+          continue;
+        }
+
+        // Si es otro tipo de error distinto a cuota, no podemos recuperarlo en este modelo
+        continue;
+      } catch (err: any) {
+        clearTimeout(timeoutId);
+        if (err.name === 'AbortError') {
+          console.warn(`Gemini clave #${keyIndex + 1} (${model}) dio timeout.`);
+          continue;
+        }
+        console.warn(`Error de red con Gemini clave #${keyIndex + 1}:`, err);
+        continue;
+      }
     }
   }
 
-  const backoff = Math.min(1000 * 2 ** (attempt - 1), 4000);
-  return backoff + Math.floor(Math.random() * 1000);
+  return { errorText: 'Todas las claves y modelos de Gemini agotaron su cuota.' };
 }
 
+// ---------------------------------------------------------------------------
+// Groq con el modelo oficial activo de visión (qwen/qwen3.8-27b)
+// ---------------------------------------------------------------------------
+async function requestGroq(apiKey: string, imageBase64: string): Promise<any> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 20000);
+
+  try {
+    const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      signal: controller.signal,
+      body: JSON.stringify({
+        model: 'qwen/qwen3.8-27b',
+        temperature: 0.1,
+        response_format: { type: 'json_object' },
+        messages: [
+          {
+            role: 'user',
+            content: [
+              { type: 'text', text: AI_PROMPT },
+              {
+                type: 'image_url',
+                image_url: { url: `data:image/jpeg;base64,${imageBase64}` },
+              },
+            ],
+          },
+        ],
+      }),
+    });
+
+    clearTimeout(timeoutId);
+
+    if (res.ok) {
+      const data = await res.json();
+      const rawText = data.choices?.[0]?.message?.content ?? '';
+      const cleaned = rawText.replace(/```json/gi, '').replace(/```/g, '').trim();
+      return JSON.parse(cleaned);
+    }
+
+    const err = await res.text();
+    console.warn('Groq falló con:', res.status, err);
+    return null;
+  } catch (e) {
+    clearTimeout(timeoutId);
+    console.warn('Groq error:', e);
+    return null;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Handler Principal
+// ---------------------------------------------------------------------------
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Método no permitido' });
-  }
-
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) {
-    return res.status(500).json({
-      error: 'El servicio de IA no está configurado: GEMINI_API_KEY no está activa en el servidor.',
-    });
   }
 
   try {
@@ -42,114 +184,29 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const cleanBase64 = imageBase64.replace(/^data:image\/\w+;base64,/, '');
 
-    const prompt = `
-      Analiza esta imagen de un ticket o recibo de compra.
-      Extrae todos los artículos consumidos con su precio y el total.
-      Responde ÚNICAMENTE con un objeto JSON con el siguiente formato estricto (sin bloques de código Markdown):
-      {
-        "items": [
-          { "name": "Nombre del concepto", "price": 0.00, "confidence": 0.95 }
-        ],
-        "total": 0.00
-      }
-    `;
-
-    // Si Gemini 3.8 Flash agota su RPD (20/20), pasa inmediatamente a Gemini 3.1 Flash Lite (500 RPD)
-    const models = ['gemini-3.8-flash', 'gemini-3.1-flash-lite'];
-    let response: Response | null = null;
-    let upstreamAborted = false;
-
-    for (const [index, model] of models.entries()) {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 24000);
-      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-
-      try {
-        response = await fetch(endpoint, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          signal: controller.signal,
-          body: JSON.stringify({
-            contents: [
-              {
-                parts: [
-                  { text: prompt },
-                  {
-                    inlineData: {
-                      mimeType: 'image/jpeg',
-                      data: cleanBase64,
-                    },
-                  },
-                ],
-              },
-            ],
-          }),
-        });
-      } catch (error) {
-        if (!(error instanceof Error) || error.name !== 'AbortError') {
-          throw error;
-        }
-        upstreamAborted = true;
-        if (index === models.length - 1) break;
-        continue;
-      } finally {
-        clearTimeout(timeoutId);
-      }
-
-      if (response && response.ok) break;
-
-      const responseText = response ? await response.clone().text() : '';
-      const isQuotaOrServerIssue =
-        response?.status === 429 ||
-        response?.status === 503 ||
-        (response?.status === 403 && /RESOURCE_EXHAUSTED|quota/i.test(responseText));
-
-      const canFallback = index < models.length - 1 && isQuotaOrServerIssue;
-      if (!canFallback) break;
-
-      await new Promise((resolve) => setTimeout(resolve, getRetryDelay(response!, index + 1)));
+    // 1️⃣ Cascada Gemini (todas las claves disponibles: 3.8 Flash -> 3.1 Flash Lite)
+    const geminiResult = await requestGeminiCascade(cleanBase64);
+    if (geminiResult.data) {
+      return res.status(200).json(geminiResult.data);
     }
 
-    if (!response || !response.ok) {
-      if (response?.status === 429) {
-        return res.status(429).json({
-          error: 'Gemini alcanzó temporalmente su límite de cuota. Espera unos momentos e intenta de nuevo.',
-        });
+    // 2️⃣ Si Gemini agotó todas las claves y modelos, entra Groq (si GROQ_API_KEY existe)
+    const groqKey = process.env.GROQ_API_KEY;
+    if (groqKey && groqKey.trim()) {
+      console.warn('Intentando respaldo de emergencia con Groq...');
+      const groqData = await requestGroq(groqKey.trim(), cleanBase64);
+      if (groqData) {
+        return res.status(200).json(groqData);
       }
-      if (response?.status === 503) {
-        return res.status(503).json({
-          error: 'El servicio de IA está temporalmente saturado. Espera unos segundos y vuelve a intentar.',
-        });
-      }
-      if (upstreamAborted) {
-        return res.status(504).json({
-          error: 'Los modelos de IA tardaron demasiado en responder. Intenta de nuevo en unos segundos.',
-        });
-      }
-      const errText = await response?.text();
-      throw new Error(`Error en la API de Gemini: ${errText || 'Sin respuesta'}`);
     }
 
-    const data = await response.json();
-    const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-
-    const jsonString = rawText.replace(/```json/gi, '').replace(/```/g, '').trim();
-    const parsedData = JSON.parse(jsonString);
-
-    return res.status(200).json(parsedData);
-  } catch (error) {
+    return res.status(429).json({
+      error: 'Todos los servicios de escaneo alcanzaron su límite temporal de cuota. Espera unos momentos e intenta de nuevo.',
+    });
+  } catch (error: any) {
     console.error('Error en /api/scan:', error);
-    if (
-      error instanceof Error &&
-      (error.name === 'AbortError' || /operation was aborted|aborted/i.test(error.message))
-    ) {
-      return res.status(504).json({
-        error: 'El servicio de IA interrumpió la solicitud antes de terminar. Intenta escanear el ticket de nuevo.',
-      });
-    }
-
     return res.status(500).json({
-      error: error instanceof Error ? error.message : 'Error al procesar la imagen.',
+      error: error?.message || 'Error al procesar la imagen.',
     });
   }
 }
