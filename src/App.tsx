@@ -34,7 +34,7 @@ import {
   DownloadCloud
 } from 'lucide-react';
 
-function resizeImage(file: File, maxWidth = 800, maxHeight = 800): Promise<string> {
+function resizeImage(file: File, maxWidth = 1200, maxHeight = 2400): Promise<string> {
   return new Promise((resolve, reject) => {
     const img = new Image();
     img.src = URL.createObjectURL(file);
@@ -42,14 +42,22 @@ function resizeImage(file: File, maxWidth = 800, maxHeight = 800): Promise<strin
       let width = img.width;
       let height = img.height;
       if (width > height) {
+        // Ticket horizontal (poco común): limita el ancho
         if (width > maxWidth) {
           height = Math.round((height * maxWidth) / width);
           width = maxWidth;
         }
       } else {
+        // Ticket vertical (lo normal): limita el alto para preservar texto legible
         if (height > maxHeight) {
           width = Math.round((width * maxHeight) / height);
           height = maxHeight;
+        }
+        // Asegura que el ancho nunca sea menor a 600px para que la IA pueda leer bien
+        if (width < 600 && img.width >= 600) {
+          const scale = 600 / width;
+          width = 600;
+          height = Math.round(height * scale);
         }
       }
       const canvas = document.createElement('canvas');
@@ -57,7 +65,8 @@ function resizeImage(file: File, maxWidth = 800, maxHeight = 800): Promise<strin
       canvas.height = height;
       const ctx = canvas.getContext('2d');
       ctx?.drawImage(img, 0, 0, width, height);
-      resolve(canvas.toDataURL('image/jpeg', 0.6));
+      // Calidad 0.82: balance entre nitidez de texto y tamaño de payload
+      resolve(canvas.toDataURL('image/jpeg', 0.82));
     };
     img.onerror = (err) => reject(err);
   });
@@ -231,7 +240,7 @@ export default function App() {
     setScanError('');
 
     try {
-      const resizedBase64 = await resizeImage(file, 800, 800);
+      const resizedBase64 = await resizeImage(file);
       const res = await scanReceiptWithAI(resizedBase64);
 
       if (scanSource === 'quick') {
