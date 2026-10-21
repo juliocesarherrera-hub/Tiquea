@@ -29,6 +29,7 @@ function getGeminiKeys(): string[] {
   return keys;
 }
 
+// Calcula el tiempo de espera entre reintentos usando el header retry-after si existe
 function getRetryDelay(response: Response, attempt: number): number {
   const retryAfter = response.headers.get('retry-after');
   if (retryAfter) {
@@ -58,7 +59,7 @@ async function requestGeminiCascade(imageBase64: string): Promise<{ data?: any; 
   }
 
   for (const [keyIndex, apiKey] of keys.entries()) {
-    for (const [modelIndex, model] of GEMINI_MODELS.entries()) {
+    for (const [_modelIndex, model] of GEMINI_MODELS.entries()) {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 20000);
       const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
@@ -159,7 +160,12 @@ async function requestGroq(apiKey: string, imageBase64: string): Promise<any> {
     }
 
     const err = await res.text();
-    console.warn('Groq falló con:', res.status, err);
+    console.warn(`Groq falló (${res.status}):`, err);
+    // Si Groq responde con retry-after, esperamos ese tiempo antes de devolver null
+    if (res.status === 429) {
+      const delay = getRetryDelay(res, 1);
+      await new Promise((r) => setTimeout(r, delay));
+    }
     return null;
   } catch (e) {
     clearTimeout(timeoutId);

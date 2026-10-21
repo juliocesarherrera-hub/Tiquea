@@ -42,7 +42,10 @@ export async function scanReceiptWithAI(base64Image: string): Promise<ValidatedR
     const validated = ScannedReceiptSchema.parse(data);
 
     return {
-      items: validated.items.filter((i) => (i.confidence ?? 1) >= 0.85),
+      // Se devuelven TODOS los artículos extraídos por la IA.
+      // El filtro anterior (confidence >= 0.85) eliminaba productos silenciosamente,
+      // provocando que la suma de artículos no cuadrara con el total del ticket.
+      items: validated.items,
       total: validated.total,
     };
   } catch (err: any) {

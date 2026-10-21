@@ -63,6 +63,9 @@ function resizeImage(file: File, maxWidth = 800, maxHeight = 800): Promise<strin
   });
 }
 
+// Año actual calculado una sola vez al cargar el módulo (valor estable, no impuro en render)
+const CURRENT_YEAR = new Date().getFullYear();
+
 export default function App() {
   const [screen, setScreen] = useState<Screen>('home');
   const [settings] = useState<Settings>(() => ({
@@ -870,7 +873,7 @@ export default function App() {
           </button>
         </div>
         <p className="text-[10px] text-zinc-600">
-          © {new Date().getFullYear()} Tiquea. Todos los derechos reservados.
+          © {CURRENT_YEAR} Tiquea. Todos los derechos reservados.
         </p>
       </footer>
 

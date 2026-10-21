@@ -1,4 +1,4 @@
-const CACHE_NAME = 'tiquea-v5';
+const CACHE_NAME = 'tiquea-v6';
 
 // Archivos requeridos para el arranque en frío sin internet
 const PRECACHE_URLS = [
